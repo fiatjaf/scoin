@@ -205,9 +205,6 @@ object Crypto {
     }
   }
 
-  def hmac512(key: ByteVector, data: ByteVector): ByteVector =
-    throw new NotImplementedError("not implemented")
-
   def sha1(x: ByteVector): ByteVector32 =
     throw new NotImplementedError("not implemented")
 
@@ -217,6 +214,9 @@ object Crypto {
         Sha256.sha256(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
       )
     )
+
+  def hmac512(key: ByteVector, data: ByteVector): ByteVector =
+    throw new NotImplementedError("not implemented")
 
   def hmac256(key: ByteVector, message: ByteVector): ByteVector32 =
     ByteVector32(

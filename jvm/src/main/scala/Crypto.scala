@@ -262,15 +262,6 @@ object Crypto {
     }
   }
 
-  def hmac512(key: ByteVector, data: ByteVector): ByteVector = {
-    val mac = new HMac(new SHA512Digest())
-    mac.init(new KeyParameter(key.toArray))
-    mac.update(data.toArray, 0, data.length.toInt)
-    val out = new Array[Byte](64)
-    mac.doFinal(out, 0)
-    ByteVector.view(out)
-  }
-
   private def hash(digest: Digest)(input: ByteVector): ByteVector = {
     digest.update(input.toArray, 0, input.length.toInt)
     val out = new Array[Byte](digest.getDigestSize)
@@ -281,6 +272,24 @@ object Crypto {
   def sha1 = hash(new SHA1Digest) _
 
   def sha256 = (x: ByteVector) => ByteVector32(hash(new SHA256Digest)(x))
+
+  def hmac512(key: ByteVector, data: ByteVector): ByteVector = {
+    val mac = new HMac(new SHA512Digest())
+    mac.init(new KeyParameter(key.toArray))
+    mac.update(data.toArray, 0, data.length.toInt)
+    val out = new Array[Byte](64)
+    mac.doFinal(out, 0)
+    ByteVector.view(out)
+  }
+
+  def hmac256(key: ByteVector, data: ByteVector): ByteVector = {
+    val mac = new HMac(new SHA256Digest())
+    mac.init(new KeyParameter(key.toArray))
+    mac.update(data.toArray, 0, data.length.toInt)
+    val out = new Array[Byte](32)
+    mac.doFinal(out, 0)
+    ByteVector.view(out)
+  }
 
   def ripemd160 = hash(new RIPEMD160Digest) _
 
