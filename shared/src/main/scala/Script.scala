@@ -735,6 +735,7 @@ object Script {
                 ),
                 signatureVersion
               )
+            case _ => throw new MatchError(stack)
           }
         case OP_NOTIF :: tail if conditions.contains(false) =>
           run(
@@ -786,6 +787,7 @@ object Script {
                   .copy(conditions = true :: conditions, opCount = opCount + 1),
                 signatureVersion
               )
+            case _ => throw new MatchError(stack)
           }
         case OP_ELSE :: tail =>
           run(
@@ -1653,6 +1655,7 @@ object Script {
                 "Cannot perform OP_WITHIN on a stack with less than 3 elements"
               )
           }
+        case _ => throw new MatchError(script)
       }
     }
 
@@ -1852,6 +1855,8 @@ object Script {
     case OP_HASH160 :: OP_PUSHDATA(data, _) :: OP_EQUAL :: Nil
         if data.size == 20 =>
       data // standard pay to script
+
+    case _ => throw new MatchError(script)
   }
 
   def publicKeyHash(script: ByteVector): ByteVector = publicKeyHash(
@@ -1870,6 +1875,7 @@ object Script {
         if data1.length > 2 && data2.length > 2 =>
       data2
     case OP_PUSHDATA(data, _) :: OP_CHECKSIG :: Nil => data
+    case _ => throw new MatchError(script)
   }
 
   /** Creates a m-of-n multisig script.
