@@ -2,6 +2,27 @@ package scoin
 
 sealed trait BtcAmount
 
+case class MilliSatoshi(private val underlying: Long)
+    extends BtcAmount
+    with Ordered[MilliSatoshi] {
+  def +(other: MilliSatoshi) = MilliSatoshi(underlying + other.underlying)
+  def -(other: MilliSatoshi) = MilliSatoshi(underlying - other.underlying)
+  def *(m: Long) = MilliSatoshi(underlying * m)
+  def *(m: Double) = MilliSatoshi((underlying * m).toLong)
+  def /(d: Long) = MilliSatoshi(underlying / d)
+  def unary_- = MilliSatoshi(-underlying)
+
+  override def compare(other: MilliSatoshi): Int =
+    underlying.compareTo(other.underlying)
+  def max(other: MilliSatoshi): MilliSatoshi = if (this > other) this else other
+  def min(other: MilliSatoshi): MilliSatoshi = if (this < other) this else other
+
+  def truncateToSatoshi: Satoshi = Satoshi(underlying / 1000)
+  def toBtc: Btc = truncateToSatoshi.toBtc
+  def toLong: Long = underlying
+  override def toString = s"${underlying}msat"
+}
+
 case class Satoshi(private val underlying: Long)
     extends BtcAmount
     with Ordered[Satoshi] {
@@ -14,49 +35,19 @@ case class Satoshi(private val underlying: Long)
   def /(d: Long) = Satoshi(underlying / d)
   def compare(other: Satoshi): Int = underlying.compare(other.underlying)
   def max(other: BtcAmount): Satoshi = other match {
+    case other: MilliSatoshi => if (this.toMilliSatoshi.toLong > other.toLong) this else other.toSatoshi
     case other: Satoshi => if (underlying > other.underlying) this else other
-    case other: MilliBtc => if (underlying > other.toSatoshi.underlying) this else other.toSatoshi
     case other: Btc => if (underlying > other.toSatoshi.underlying) this else other.toSatoshi
   }
   def min(other: BtcAmount): Satoshi = other match {
+    case other:  MilliSatoshi => if (this.toMilliSatoshi.toLong < other.toLong) this else other
     case other: Satoshi => if (underlying < other.underlying) this else other
-    case other: MilliBtc => if (underlying < other.toSatoshi.underlying) this else other.toSatoshi
     case other: Btc => if (underlying < other.toSatoshi.underlying) this else other.toSatoshi
   }
   def toBtc: Btc = Btc(BigDecimal(underlying) / BtcAmount.Coin)
-  def toMilliBtc: MilliBtc = toBtc.toMilliBtc
+  def toMilliSatoshi:  MilliSatoshi = MilliSatoshi(underlying * 1000)
   def toLong = underlying
-  override def toString = s"$underlying sat"
-  // @formatter:on
-}
-
-case class MilliBtc(private val underlying: BigDecimal)
-    extends BtcAmount
-    with Ordered[MilliBtc] {
-  // @formatter:off
-  def +(other: MilliBtc) = MilliBtc(underlying + other.underlying)
-  def -(other: MilliBtc) = MilliBtc(underlying - other.underlying)
-  def unary_- = MilliBtc(-underlying)
-  def *(m: Long) = MilliBtc(underlying * m)
-  def *(m: Double) = MilliBtc(underlying * m)
-  def /(d: Long) = MilliBtc(underlying / d)
-  def compare(other: MilliBtc): Int = underlying.compare(other.underlying)
-  def max(other: BtcAmount): MilliBtc = other match {
-    case other: Satoshi => if (underlying > other.toMilliBtc.underlying) this else other.toMilliBtc
-    case other: MilliBtc => if (underlying > other.underlying) this else other
-    case other: Btc => if (underlying > other.toMilliBtc.underlying) this else other.toMilliBtc
-  }
-  def min(other: BtcAmount): MilliBtc = other match {
-    case other: Satoshi => if (underlying < other.toMilliBtc.underlying) this else other.toMilliBtc
-    case other: MilliBtc => if (underlying < other.underlying) this else other
-    case other: Btc => if (underlying < other.toMilliBtc.underlying) this else other.toMilliBtc
-  }
-  def toBtc: Btc = Btc(underlying / 1000)
-  def toSatoshi: Satoshi = toBtc.toSatoshi
-  def toBigDecimal = underlying
-  def toDouble: Double = underlying.toDouble
-  def toLong: Long = underlying.toLong
-  override def toString = s"$underlying mBTC"
+  override def toString = s"${underlying}sat"
   // @formatter:on
 }
 
@@ -74,16 +65,16 @@ case class Btc(private val underlying: BigDecimal)
   def /(d: Long) = Btc(underlying / d)
   def compare(other: Btc): Int = underlying.compare(other.underlying)
   def max(other: BtcAmount): Btc = other match {
+    case other: MilliSatoshi => if (this.toMilliSatoshi.toLong > other.toLong) this else other.toBtc
     case other: Satoshi => if (underlying > other.toBtc.underlying) this else other.toBtc
-    case other: MilliBtc => if (underlying > other.toBtc.underlying) this else other.toBtc
     case other: Btc => if (underlying > other.underlying) this else other
   }
   def min(other: BtcAmount): Btc = other match {
+    case other: MilliSatoshi => if (this.toMilliSatoshi.toLong < other.toLong) this else other.toBtc
     case other: Satoshi => if (underlying < other.toBtc.underlying) this else other.toBtc
-    case other: MilliBtc => if (underlying < other.toBtc.underlying) this else other.toBtc
     case other: Btc => if (underlying < other.underlying) this else other
   }
-  def toMilliBtc: MilliBtc = MilliBtc(underlying * 1000)
+  def toMilliSatoshi: MilliSatoshi = toSatoshi.toMilliSatoshi
   def toSatoshi: Satoshi = Satoshi((underlying * BtcAmount.Coin).toLong)
   def toBigDecimal = underlying
   def toDouble: Double = underlying.toDouble
@@ -94,6 +85,5 @@ case class Btc(private val underlying: BigDecimal)
 
 object BtcAmount {
   val Coin = 100000000L
-  val Cent = 1000000L
   val MaxMoney = 21e6 * Coin
 }

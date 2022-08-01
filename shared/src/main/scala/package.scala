@@ -43,10 +43,6 @@ package object scoin {
     def sat = Satoshi(n)
   }
 
-  implicit final class MilliBtcDouble(private val n: Double) extends AnyVal {
-    def millibtc = MilliBtc(n)
-  }
-
   implicit final class BtcDouble(private val n: Double) extends AnyVal {
     def btc = Btc(n)
   }
@@ -54,10 +50,10 @@ package object scoin {
   // @formatter:off
   implicit def satoshi2btc(input: Satoshi): Btc = input.toBtc
   implicit def btc2satoshi(input: Btc): Satoshi = input.toSatoshi
-  implicit def satoshi2millibtc(input: Satoshi): MilliBtc = input.toMilliBtc
-  implicit def millibtc2satoshi(input: MilliBtc): Satoshi = input.toSatoshi
-  implicit def btc2millibtc(input: Btc): MilliBtc = input.toMilliBtc
-  implicit def millibtc2btc(input: MilliBtc): Btc = input.toBtc
+  implicit def satoshi2millisatoshi(input: Satoshi): MilliSatoshi = input.toMilliSatoshi
+  implicit def millisatoshi2satoshi(input: MilliSatoshi): Satoshi = input.toSatoshi
+  implicit def btc2millisatoshi(input: Btc): MilliSatoshi = input.toMilliSatoshi
+  implicit def millisatoshi2btc(input: MilliSatoshi): Btc = input.toBtc
   // @formatter:on
 
   /** @param input
