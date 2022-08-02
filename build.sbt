@@ -33,10 +33,10 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .jsSettings(
     scalaVersion := "3.1.3",
     Compile / npmDependencies ++= Seq(
-      "@noble/secp256k1" -> "1.6.3"
+      "@noble/secp256k1" -> "1.6.3",
+      "hash.js" -> "1.1.7"
     ),
-    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
-    scalacOptions += "-P:scalajs:nowarnGlobalExecutionContext"
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
   )
   .nativeSettings(
     scalaVersion := "3.1.3",

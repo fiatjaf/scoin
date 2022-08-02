@@ -2,12 +2,18 @@ package scoin
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
-import scala.scalanative.unsigned._
+import scala.util.Try
+import scala.language.implicitConversions
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.typedarray.Uint8Array
 import scodec.bits.ByteVector
-import sha256.{Hmac, Sha256}
 
 object Crypto {
-  val halfCurveOrder = N.shiftRight(1)
+  private val zero = BigInteger.valueOf(0)
+  private val one = BigInteger.valueOf(1)
+
+  val halfCurveOrder = Curve.n.shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
@@ -17,40 +23,40 @@ object Crypto {
     *   value to initialize this key with
     */
   case class PrivateKey(value: ByteVector32) {
-    lazy val underlying =
-      secp256k1.Keys.loadPrivateKey(value.toArray.map(_.toUByte)).toOption.get
-
-    def add(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        ByteVector(
-          underlying.add(that.value.toArray.map(_.toUByte)).value.map(_.toByte)
+    def add(that: PrivateKey): PrivateKey = PrivateKey(
+      ByteVector32(
+        ByteVector.view(
+          Secp256k1Utils.privateAdd(
+            value.bytes.toUint8Array,
+            that.value.bytes.toUint8Array
+          )
         )
       )
+    )
 
-    def subtract(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        ByteVector(
-          underlying
-            .add(
-              secp256k1.Keys
-                .loadPrivateKey(that.value.toArray.map(_.toUByte))
-                .toOption
-                .get
-                .negate()
-                .value
-            )
-            .value
-            .map(_.toByte)
+    def subtract(that: PrivateKey): PrivateKey = PrivateKey(
+      ByteVector32(
+        ByteVector.view(
+          Secp256k1Utils.privateAdd(
+            value.bytes.toUint8Array,
+            Secp256k1Utils.privateNegate(that.value.bytes.toUint8Array)
+          )
         )
       )
+    )
 
     def multiply(that: PrivateKey): PrivateKey =
       PrivateKey(
-        ByteVector(
-          underlying
-            .multiply(that.value.toArray.map(_.toUByte))
-            .value
-            .map(_.toByte)
+        ByteVector.fromValidHex(
+          Secp256k1Utils
+            .mod(
+              js.BigInt(
+                bytevector2biginteger(value.bytes)
+                  .multiply(bytevector2biginteger(that.value.bytes))
+                  .toString(10)
+              )
+            )
+            .toString(16)
         )
       )
 
@@ -58,10 +64,12 @@ object Crypto {
     def -(that: PrivateKey): PrivateKey = subtract(that)
     def *(that: PrivateKey): PrivateKey = multiply(that)
 
-    def publicKey: PublicKey =
-      PublicKey(
-        ByteVector(underlying.publicKey().value.map(_.toByte))
-      )
+    // used only if secp256k1 is not available
+    lazy val bigInt = new BigInteger(1, value.toArray)
+
+    def publicKey: PublicKey = PublicKey(
+      ByteVector.view(Secp256k1.getPublicKey(value.bytes.toUint8Array))
+    )
 
     /** @param prefix
       *   Private key prefix
@@ -119,44 +127,41 @@ object Crypto {
     require(value.length == 33)
     require(isPubKeyValidLax(value))
 
-    lazy val underlying =
-      secp256k1.Keys.loadPublicKey(value.toArray.map(_.toUByte)).toOption.get
-
     def hash160: ByteVector = Crypto.hash160(value)
 
     def isValid: Boolean = isPubKeyValidStrict(this.value)
 
-    def add(that: PublicKey): PublicKey =
-      throw new NotImplementedError("must update sn-secp256k1")
+    def add(that: PublicKey): PublicKey = PublicKey(
+      ByteVector.view(point.add(that.point).toRawBytes(true))
+    )
 
     def add(that: PrivateKey): PublicKey =
       PublicKey(
-        ByteVector(
-          underlying.add(that.value.toArray.map(_.toUByte)).value.map(_.toByte)
+        ByteVector.view(
+          Secp256k1Utils.pointAddScalar(
+            value.toUint8Array,
+            that.value.toUint8Array
+          )
         )
       )
 
-    def subtract(that: PublicKey): PublicKey =
-      throw new NotImplementedError("must update sn-secp256k1")
+    def subtract(that: PublicKey): PublicKey = PublicKey(
+      ByteVector.view(point.add(that.point).toRawBytes(true))
+    )
 
-    def multiply(that: PrivateKey): PublicKey =
-      PublicKey(
-        ByteVector(
-          underlying
-            .multiply(that.value.toArray.map(_.toUByte))
-            .value
-            .map(_.toByte)
-        )
-      )
+    def multiply(that: PrivateKey): PublicKey = PublicKey(
+      ByteVector.view(point.multiply(that.value.toUint8Array).toRawBytes(true))
+    )
 
     def +(that: PublicKey): PublicKey = add(that)
     def -(that: PublicKey): PublicKey = subtract(that)
     def *(that: PrivateKey): PublicKey = multiply(that)
 
-    def toUncompressedBin: ByteVector =
-      throw new NotImplementedError("must update sn-secp256k1")
+    def toUncompressedBin: ByteVector = ByteVector.view(point.toRawBytes(false))
 
     override def toString = value.toHex
+
+    lazy val point = Point.fromHex(value.toUint8Array)
   }
 
   object PublicKey {
@@ -205,33 +210,28 @@ object Crypto {
     }
   }
 
-  def sha1(x: ByteVector): ByteVector32 =
-    throw new NotImplementedError("not implemented")
+  def sha1(input: ByteVector): ByteVector =
+    ByteVector.fromValidHex(HashJS.sha1().update(input.toHex).digest())
 
-  def sha256(x: ByteVector): ByteVector32 =
+  def sha256(input: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector(
-        Sha256.sha256(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
-      )
+      ByteVector.fromValidHex(HashJS.sha256().update(input.toHex).digest())
     )
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
-    throw new NotImplementedError("not implemented")
+    ByteVector.fromValidHex(
+      HashJS.hmac(HashJS.sha512, key.toHex).update(data.toHex).digest()
+    )
 
-  def hmac256(key: ByteVector, message: ByteVector): ByteVector32 =
+  def hmac256(key: ByteVector, data: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector(
-        Hmac
-          .hmac(
-            key.toArray.map[UByte](_.toUByte),
-            message.toArray.map[UByte](_.toUByte)
-          )
-          .map[Byte](_.toByte)
+      ByteVector.fromValidHex(
+        HashJS.hmac(HashJS.sha256, key.toHex).update(data.toHex).digest()
       )
     )
 
   def ripemd160(input: ByteVector): ByteVector =
-    throw new NotImplementedError("not implemented")
+    ByteVector.fromValidHex(HashJS.ripemd160().update(input.toHex).digest())
 
   /** 160 bits bitcoin hash, used mostly for address encoding hash160(input) =
     * RIPEMD160(SHA256(input))
@@ -402,7 +402,9 @@ object Crypto {
     *   secp256k1 curve
     */
   def isPubKeyValidStrict(key: ByteVector): Boolean = isPubKeyValidLax(key) &&
-    secp256k1.Keys.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
+    Try(Point.fromHex(key.toUint8Array).assertValidity())
+      .map(_ => true)
+      .getOrElse(false)
 
   def isPubKeyCompressedOrUncompressed(key: ByteVector): Boolean =
     key.length match {
@@ -483,7 +485,7 @@ object Crypto {
 
   def compact2der(signature: ByteVector64): ByteVector =
     throw new NotImplementedError(
-      "must update replace this with an option on the sign method"
+      "must replace this with an option on the sign method"
     )
 
   def der2compact(signature: ByteVector): ByteVector64 = {
@@ -512,10 +514,11 @@ object Crypto {
       signature: ByteVector64,
       publicKey: PublicKey
   ): Boolean =
-    publicKey.underlying
-      .verify(data.toArray.map(_.toUByte), signature.toArray.map(_.toUByte))
-      .toOption
-      .getOrElse(false)
+    Secp256k1.verify(
+      signature.bytes.toUint8Array,
+      data.toUint8Array,
+      publicKey.value.toUint8Array
+    )
 
   /** @param privateKey
     *   private key
@@ -538,18 +541,18 @@ object Crypto {
     *   a signature in compact format (64 bytes)
     */
   def sign(data: Array[Byte], privateKey: PrivateKey): ByteVector64 =
-    ByteVector64(
-      ByteVector(
-        privateKey.underlying
-          .sign(data.map(_.toUByte))
-          .toOption
-          .get
-          .map(_.toByte)
-      )
-    )
+    sign(ByteVector.view(data), privateKey)
 
   def sign(data: ByteVector, privateKey: PrivateKey): ByteVector64 =
-    sign(data.toArray, privateKey)
+    ByteVector64(
+      ByteVector.view(
+        Secp256k1.signSync(
+          data.toUint8Array,
+          privateKey.value.bytes.toUint8Array,
+          js.Dictionary(("der" -> false))
+        )
+      )
+    )
 
   /** @param x
     *   x coordinate
@@ -558,7 +561,7 @@ object Crypto {
     *   \= x p1.y is even, p2.y is odd
     */
   private def recoverPoint(x: BigInteger): (PublicKey, PublicKey) =
-    throw new NotImplementedError("must update sn-secp256k1")
+    throw new NotImplementedError("not implemented in @noble/secp256k1")
 
   /** Recover public keys from a signature and the message that was signed. This
     * method will return 2 public keys, and the signature can be verified with
@@ -576,8 +579,16 @@ object Crypto {
       signature: ByteVector64,
       message: ByteVector,
       recoveryId: Int
-  ): PublicKey =
-    throw new NotImplementedError("must update sn-secp256k1")
+  ): PublicKey = PublicKey(
+    ByteVector.view(
+      Secp256k1.recoverPublicKey(
+        message.toUint8Array,
+        signature.bytes.toUint8Array,
+        recoveryId,
+        true
+      )
+    )
+  )
 
   def recoverPublicKey(
       signature: ByteVector64,
@@ -599,12 +610,114 @@ object Crypto {
     (Q1, Q2)
   }
 
-  private def G = PublicKey(
-    ByteVector(
-      secp256k1.Secp256k1.G.value.toArray.map[Byte](_.toByte)
-    )
+  val N = bigint2biginteger(Curve.n)
+  val G = PublicKey(
+    ByteVector.view(new Point(Curve.Gx, Curve.Gy).toRawBytes(true))
   )
 
-  def N: BigInteger =
-    throw new NotImplementedError("must update sn-secp256k1")
+  private implicit def bigint2biginteger(x: js.BigInt): BigInteger =
+    new BigInteger(x.toString(10), 10)
+
+  private implicit def bytevector2biginteger(x: ByteVector): BigInteger =
+    new BigInteger(x.toHex, 16)
+}
+
+@js.native
+@JSImport("@noble/secp256k1", JSImport.Namespace)
+object Secp256k1 extends js.Object {
+  def getPublicKey(
+      privateKey: Uint8Array,
+      compressed: Boolean = true
+  ): Uint8Array = js.native
+  def signSync(
+      msgHash: Uint8Array,
+      privateKey: Uint8Array,
+      options: js.Dictionary[Boolean]
+  ): Uint8Array = js.native
+  def verify(
+      sig: Uint8Array,
+      msgHash: Uint8Array,
+      publicKey: Uint8Array
+  ): Boolean =
+    js.native
+  def recoverPublicKey(
+      msgHash: Uint8Array,
+      sig: Uint8Array,
+      rec: Integer,
+      compressed: Boolean
+  ): Uint8Array = js.native
+}
+
+@js.native
+@JSImport("@noble/secp256k1", "CURVE")
+object Curve extends js.Object {
+  def Gx: js.BigInt = js.native
+  def Gy: js.BigInt = js.native
+  def n: js.BigInt = js.native
+}
+
+@js.native
+@JSImport("@noble/secp256k1", "Point")
+object Point extends js.Object {
+  def fromHex(bytes: Uint8Array): Point = js.native
+}
+
+@js.native
+@JSImport("@noble/secp256k1", "Point")
+class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
+  def negate(): Point = js.native
+  def add(point: Point): Point = js.native
+  def subtract(point: Point): Point = js.native
+  def multiply(scalar: Uint8Array): Point = js.native
+  def toRawBytes(compressed: Boolean): Uint8Array = js.native
+  def assertValidity(): Unit = js.native
+}
+
+@js.native
+@JSImport("@noble/secp256k1", "utils")
+object Secp256k1Utils extends js.Object {
+  def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
+  def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
+    js.native
+  def pointAddScalar(point: Uint8Array, tweak: Uint8Array): Uint8Array =
+    js.native
+  def mod(number: js.BigInt): js.BigInt = js.native
+}
+
+object monkeyPatch {
+  def sha256Sync(msg: Uint8Array): Uint8Array =
+    ByteVector
+      .fromValidHex(
+        HashJS.sha256().update(ByteVector.view(msg).toHex).digest()
+      )
+      .toUint8Array
+
+  def hmacSha256Sync(key: Uint8Array, msg: Uint8Array): Uint8Array =
+    ByteVector
+      .fromValidHex(
+        HashJS
+          .hmac(HashJS.sha256, ByteVector.view(key).toHex)
+          .update(ByteVector.view(msg).toHex)
+          .digest()
+      )
+      .toUint8Array
+
+  Secp256k1Utils.asInstanceOf[js.Dynamic].sha256Sync = sha256Sync
+  Secp256k1Utils.asInstanceOf[js.Dynamic].hmacSha256Sync = hmacSha256Sync
+}
+
+@js.native
+@JSImport("hash.js", JSImport.Default)
+object HashJS extends js.Object {
+  def sha1(): Hash = js.native
+  def sha256(): Hash = js.native
+  def sha512(): Hash = js.native
+  def ripemd160(): Hash = js.native
+  def hmac(hash: () => Hash, key: String, enc: String = "hex"): Hash = js.native
+}
+
+@js.native
+trait Hash extends js.Object {
+  def update(msg: String, enc: String = "hex"): Hash = js.native
+  def digest(enc: String = "hex"): String = js.native
 }
