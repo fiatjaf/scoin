@@ -5,7 +5,7 @@ import java.math.BigInteger
 import scala.util.Try
 import scala.language.implicitConversions
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.annotation.JSGlobal
 import scala.scalajs.js.typedarray.Uint8Array
 import scodec.bits.ByteVector
 
@@ -211,27 +211,39 @@ object Crypto {
   }
 
   def sha1(input: ByteVector): ByteVector =
-    ByteVector.fromValidHex(HashJS.sha1().update(input.toHex).digest())
+    ByteVector.fromValidHex(
+      HashJS.sha1().update(input.toHex, "hex").digest("hex")
+    )
 
   def sha256(input: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector.fromValidHex(HashJS.sha256().update(input.toHex).digest())
+      ByteVector.fromValidHex(
+        HashJS.sha256().update(input.toHex, "hex").digest("hex")
+      )
     )
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
     ByteVector.fromValidHex(
-      HashJS.hmac(HashJS.sha512, key.toHex).update(data.toHex).digest()
+      HashJS
+        .hmac(HashJS.sha512, key.toHex, "hex")
+        .update(data.toHex, "hex")
+        .digest("hex")
     )
 
   def hmac256(key: ByteVector, data: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector.fromValidHex(
-        HashJS.hmac(HashJS.sha256, key.toHex).update(data.toHex).digest()
+        HashJS
+          .hmac(HashJS.sha256, key.toHex, "hex")
+          .update(data.toHex, "hex")
+          .digest("hex")
       )
     )
 
   def ripemd160(input: ByteVector): ByteVector =
-    ByteVector.fromValidHex(HashJS.ripemd160().update(input.toHex).digest())
+    ByteVector.fromValidHex(
+      HashJS.ripemd160().update(input.toHex, "hex").digest("hex")
+    )
 
   /** 160 bits bitcoin hash, used mostly for address encoding hash160(input) =
     * RIPEMD160(SHA256(input))
@@ -623,7 +635,7 @@ object Crypto {
 }
 
 @js.native
-@JSImport("@noble/secp256k1", JSImport.Namespace)
+@JSGlobal
 object Secp256k1 extends js.Object {
   def getPublicKey(
       privateKey: Uint8Array,
@@ -649,7 +661,7 @@ object Secp256k1 extends js.Object {
 }
 
 @js.native
-@JSImport("@noble/secp256k1", "CURVE")
+@JSGlobal
 object Curve extends js.Object {
   def Gx: js.BigInt = js.native
   def Gy: js.BigInt = js.native
@@ -657,13 +669,13 @@ object Curve extends js.Object {
 }
 
 @js.native
-@JSImport("@noble/secp256k1", "Point")
+@JSGlobal
 object Point extends js.Object {
   def fromHex(bytes: Uint8Array): Point = js.native
 }
 
 @js.native
-@JSImport("@noble/secp256k1", "Point")
+@JSGlobal
 class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
   def negate(): Point = js.native
   def add(point: Point): Point = js.native
@@ -674,7 +686,7 @@ class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
 }
 
 @js.native
-@JSImport("@noble/secp256k1", "utils")
+@JSGlobal
 object Secp256k1Utils extends js.Object {
   def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
   def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
@@ -688,7 +700,7 @@ object monkeyPatch {
   def sha256Sync(msg: Uint8Array): Uint8Array =
     ByteVector
       .fromValidHex(
-        HashJS.sha256().update(ByteVector.view(msg).toHex).digest()
+        HashJS.sha256().update(ByteVector.view(msg).toHex, "hex").digest("hex")
       )
       .toUint8Array
 
@@ -696,9 +708,9 @@ object monkeyPatch {
     ByteVector
       .fromValidHex(
         HashJS
-          .hmac(HashJS.sha256, ByteVector.view(key).toHex)
-          .update(ByteVector.view(msg).toHex)
-          .digest()
+          .hmac(HashJS.sha256, ByteVector.view(key).toHex, "hex")
+          .update(ByteVector.view(msg).toHex, "hex")
+          .digest("hex")
       )
       .toUint8Array
 
@@ -707,17 +719,17 @@ object monkeyPatch {
 }
 
 @js.native
-@JSImport("hash.js", JSImport.Default)
+@JSGlobal
 object HashJS extends js.Object {
   def sha1(): Hash = js.native
   def sha256(): Hash = js.native
   def sha512(): Hash = js.native
   def ripemd160(): Hash = js.native
-  def hmac(hash: () => Hash, key: String, enc: String = "hex"): Hash = js.native
+  def hmac(hash: () => Hash, key: String, enc: String): Hash = js.native
 }
 
 @js.native
 trait Hash extends js.Object {
-  def update(msg: String, enc: String = "hex"): Hash = js.native
-  def digest(enc: String = "hex"): String = js.native
+  def update(msg: String, enc: String): Hash = js.native
+  def digest(enc: String): String = js.native
 }

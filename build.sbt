@@ -29,14 +29,8 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "org.bouncycastle" % "bcprov-jdk15to18" % "1.68"
     )
   )
-  .jsConfigure { project => project.enablePlugins(ScalaJSBundlerPlugin) }
   .jsSettings(
-    scalaVersion := "3.1.3",
-    Compile / npmDependencies ++= Seq(
-      "@noble/secp256k1" -> "1.6.3",
-      "hash.js" -> "1.1.7"
-    ),
-    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
+    scalaVersion := "3.1.3"
   )
   .nativeSettings(
     scalaVersion := "3.1.3",
