@@ -23,6 +23,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     )
   )
   .jvmSettings(
+    scalaVersion := "2.13.8",
     crossScalaVersions := List("2.13.8", "3.1.3"),
     libraryDependencies ++= Seq(
       "fr.acinq.secp256k1" % "secp256k1-kmp-jni-jvm" % "0.6.4",
