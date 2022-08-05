@@ -1346,15 +1346,16 @@ object Psbt {
     } yield Psbt(global, inputs, outputs)
 
     private def readMagicBytes(input: InputStream): Try[Boolean] = Try {
-      input.readNBytes(4).toList
+      readNBytes(input, 4).toList
     } match {
       case Success(0x70 :: 0x73 :: 0x62 :: 0x74 :: Nil) => Success(true)
-      case _ =>
+      case Success(_) =>
         Failure(
           new IllegalArgumentException(
             "invalid magic bytes: psbt must start with 0x70736274"
           )
         )
+      case Failure(err) => Failure(err)
     }
 
     private def readSeparator(input: InputStream): Try[Boolean] = Try {
@@ -1956,8 +1957,8 @@ object Psbt {
             // 0x00 is used as separator to mark the end of a data map.
             None
           case keyLength =>
-            val key = input.readNBytes(keyLength.toInt)
-            val value = input.readNBytes(Protocol.varint(input).toInt)
+            val key = readNBytes(input, keyLength.toInt)
+            val value = readNBytes(input, Protocol.varint(input).toInt)
             Some(DataEntry(ByteVector(key), ByteVector(value)))
         }
       }
@@ -2170,4 +2171,6 @@ object Psbt {
 
   }
 
+  private def readNBytes(stream: InputStream, nBytes: Integer): Array[Byte] =
+    Array.range(0, nBytes).map(_ => stream.read().toByte)
 }
