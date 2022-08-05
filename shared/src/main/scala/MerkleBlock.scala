@@ -188,6 +188,7 @@ object MerkleBlock extends BtcSerializer[MerkleBlock] {
         val (left, matched1, hashes1, bits1) =
           computeRoot(count, height - 1, 2 * pos, hashes, tail, matched)
         (Crypto.hash256(left ++ left), matched1, hashes1, bits1)
+      case _ => throw new MatchError(bits)
     }
   }
 

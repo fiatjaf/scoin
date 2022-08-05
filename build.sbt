@@ -1,3 +1,12 @@
+ThisBuild / scalaVersion        := "3.1.3"
+ThisBuild / organization        := "com.fiatjaf"
+ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
+ThisBuild / licenses            += License.Apache2
+ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
+
+ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / tlSonatypeUseLegacyHost := false
+
 lazy val root = project.in(file("."))
   .aggregate(scoin.js, scoin.jvm, scoin.native)
 
@@ -5,19 +14,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .in(file("."))
   .settings(
     name := "scoin",
-    organization := "com.fiatjaf",
-    version := "0.1.0-SNAPSHOT",
-    sonatypeProfileName := "com.fiatjaf",
-    homepage := Some(url("https://github.com/fiatjaf/scoin")),
-    scmInfo := Some(ScmInfo(url("https://github.com/fiatjaf/scoin"), "git@github.com:fiatjaf/scoin.git")),
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
-    developers := List(
-      Developer(id="fiatjaf", name="fiatjaf", email="fiatjaf@gmail.com", url=url("https://fiatjaf.com/")),
-    ),
-    publishMavenStyle := true,
-    publishTo := sonatypePublishToBundle.value,
-    sonatypeCredentialHost := "s01.oss.sonatype.org",
-    scalacOptions ++= Seq("-deprecation", "-feature"),
+    description := "The simplest possible multipurpose Bitcoin and Lightning library for Scala Native and Scala JS.",
     libraryDependencies ++= Seq(
       "org.scodec" %%% "scodec-bits" % "1.1.34",
     )
