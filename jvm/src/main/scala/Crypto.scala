@@ -1,5 +1,7 @@
 package scoin
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.math.BigInteger
 import fr.acinq.secp256k1.Secp256k1
 import org.bouncycastle.asn1.sec.SECNamedCurves
 import org.bouncycastle.asn1.{ASN1Integer, DERSequenceGenerator}
@@ -16,10 +18,11 @@ import org.bouncycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 import org.bouncycastle.math.ec.ECPoint
 import scodec.bits.ByteVector
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.math.BigInteger
+trait CryptoPlatform {
+  import Crypto._
 
-object Crypto {
+  def N: BigInteger = curve.getN
+
   private val params = SECNamedCurves.getByName("secp256k1")
   private val curve = new ECDomainParameters(
     params.getCurve,
@@ -27,11 +30,11 @@ object Crypto {
     params.getN,
     params.getH
   )
+
   private val zero = BigInteger.valueOf(0)
   private val one = BigInteger.valueOf(1)
   private lazy val nativeSecp256k1: Secp256k1 = Secp256k1.get()
 
-  val halfCurveOrder = params.getN().shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
@@ -593,18 +596,18 @@ object Crypto {
     *   \= x p1.y is even, p2.y is odd
     */
   private def recoverPoint(x: BigInteger): (PublicKey, PublicKey) = {
-    val x1 = Crypto.curve.getCurve.fromBigInteger(x)
+    val x1 = curve.getCurve.fromBigInteger(x)
     val square = x1
       .square()
-      .add(Crypto.curve.getCurve.getA)
+      .add(curve.getCurve.getA)
       .multiply(x1)
-      .add(Crypto.curve.getCurve.getB)
+      .add(curve.getCurve.getB)
     val y1 = square.sqrt()
     val y2 = y1.negate()
-    val R1 = Crypto.curve.getCurve
+    val R1 = curve.getCurve
       .createPoint(x1.toBigInteger, y1.toBigInteger)
       .normalize()
-    val R2 = Crypto.curve.getCurve
+    val R2 = curve.getCurve
       .createPoint(x1.toBigInteger, y2.toBigInteger)
       .normalize()
     if (y1.testBitZero())
@@ -655,15 +658,13 @@ object Crypto {
     val (p1, p2) = recoverPoint(r)
     val Q1 = (p1
       .multiply(PrivateKey(s))
-      .subtract(PublicKey(Crypto.curve.getG.multiply(m))))
-      .multiply(PrivateKey(r.modInverse(Crypto.curve.getN)))
+      .subtract(PublicKey(curve.getG.multiply(m))))
+      .multiply(PrivateKey(r.modInverse(curve.getN)))
     val Q2 = (p2
       .multiply(PrivateKey(s))
-      .subtract(PublicKey(Crypto.curve.getG.multiply(m))))
-      .multiply(PrivateKey(r.modInverse(Crypto.curve.getN)))
+      .subtract(PublicKey(curve.getG.multiply(m))))
+      .multiply(PrivateKey(r.modInverse(curve.getN)))
 
     (Q1, Q2)
   }
-
-  def N: BigInteger = Crypto.curve.getN
 }

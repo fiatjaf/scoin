@@ -263,5 +263,4 @@ object Bech32 {
       )
     (hrp, version, ByteVector.view(bin))
   }
-
 }

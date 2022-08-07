@@ -9,11 +9,17 @@ import scala.scalajs.js.annotation.JSGlobal
 import scala.scalajs.js.typedarray.Uint8Array
 import scodec.bits.ByteVector
 
-object Crypto {
+trait CryptoPlatform {
+  import Crypto._
+
+  val N = bigint2biginteger(Curve.n)
+  val G = PublicKey(
+    ByteVector.view(new Point(Curve.Gx, Curve.Gy).toRawBytes(true))
+  )
+
   private val zero = BigInteger.valueOf(0)
   private val one = BigInteger.valueOf(1)
 
-  val halfCurveOrder = Curve.n.shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
@@ -621,11 +627,6 @@ object Crypto {
 
     (Q1, Q2)
   }
-
-  val N = bigint2biginteger(Curve.n)
-  val G = PublicKey(
-    ByteVector.view(new Point(Curve.Gx, Curve.Gy).toRawBytes(true))
-  )
 
   private implicit def bigint2biginteger(x: js.BigInt): BigInteger =
     new BigInteger(x.toString(10), 10)

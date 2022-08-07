@@ -6,8 +6,12 @@ import scala.scalanative.unsigned._
 import scodec.bits.ByteVector
 import sha256.{Hmac, Sha256}
 
-object Crypto {
-  val halfCurveOrder = N.shiftRight(1)
+trait CryptoPlatform {
+  import Crypto._
+
+  def N: BigInteger =
+    throw new NotImplementedError("must update sn-secp256k1")
+
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
@@ -604,7 +608,4 @@ object Crypto {
       secp256k1.Secp256k1.G.value.toArray.map[Byte](_.toByte)
     )
   )
-
-  def N: BigInteger =
-    throw new NotImplementedError("must update sn-secp256k1")
 }
