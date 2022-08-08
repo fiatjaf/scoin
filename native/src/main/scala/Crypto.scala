@@ -169,15 +169,6 @@ trait CryptoPlatform {
       )
     )
 
-  /** @param x
-    *   x coordinate
-    * @return
-    *   a tuple (p1, p2) where p1 and p2 are points on the curve and p1.x = p2.x
-    *   \= x p1.y is even, p2.y is odd
-    */
-  protected def recoverPoint(x: BigInteger): (PublicKey, PublicKey) =
-    throw new NotImplementedError("must update sn-secp256k1")
-
   /** Recover public keys from a signature and the message that was signed. This
     * method will return 2 public keys, and the signature can be verified with
     * both, but only one of them matches that private key that was used to

@@ -208,13 +208,7 @@ trait CryptoPlatform {
     PublicKey.fromBin(ByteVector.view(bin))
   }
 
-  /** @param x
-    *   x coordinate
-    * @return
-    *   a tuple (p1, p2) where p1 and p2 are points on the curve and p1.x = p2.x
-    *   \= x p1.y is even, p2.y is odd
-    */
-  protected def recoverPoint(x: BigInteger): (PublicKey, PublicKey) = {
+  private[this] def recoverPoint(x: BigInteger): (PublicKey, PublicKey) = {
     val x1 = curve.getCurve.fromBigInteger(x)
     val square = x1
       .square()
