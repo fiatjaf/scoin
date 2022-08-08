@@ -142,10 +142,11 @@ trait CryptoPlatform {
   def isPubKeyValidStrict(key: ByteVector): Boolean = isPubKeyValidLax(key) &&
     secp256k1.Keys.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
 
-  def compact2der(signature: ByteVector64): ByteVector =
-    throw new NotImplementedError(
-      "must update replace this with an option on the sign method"
-    )
+  // copied from noble-secp256k1
+  def compact2der(signature: ByteVector64): ByteVector = {
+    val (r, s) = decodeSignatureCompact(signature)
+    signatureToDER(r, s)
+  }
 
   def verifySignature(
       data: Array[Byte],

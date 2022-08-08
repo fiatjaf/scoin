@@ -150,10 +150,10 @@ trait CryptoPlatform {
       .map(_ => true)
       .getOrElse(false)
 
-  def compact2der(signature: ByteVector64): ByteVector =
-    throw new NotImplementedError(
-      "must replace this with an option on the sign method"
-    )
+  def compact2der(signature: ByteVector64): ByteVector = {
+    val (r, s) = decodeSignatureCompact(signature)
+    signatureToDER(r, s)
+  }
 
   def verifySignature(
       data: Array[Byte],
