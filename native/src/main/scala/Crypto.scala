@@ -7,7 +7,7 @@ import scodec.bits.ByteVector
 import sha256.{Hmac, Sha256}
 
 object Crypto {
-  val halfCurveOrder = N.shiftRight(1)
+  lazy val halfCurveOrder = N.shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
