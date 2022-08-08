@@ -17,6 +17,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     description := "The simplest possible multipurpose Bitcoin and Lightning library for Scala Native and Scala JS.",
     libraryDependencies ++= Seq(
       "org.scodec" %%% "scodec-bits" % "1.1.34",
+      "org.scodec" %%% "scodec-core" % (if (scalaVersion.value.startsWith("2.")) "1.11.9" else "2.2.0"),
     )
   )
   .jvmSettings(

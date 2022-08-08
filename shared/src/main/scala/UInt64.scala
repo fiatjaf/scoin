@@ -1,12 +1,14 @@
 package scoin
 
-import scala.language.implicitConversions
 import scodec.bits.ByteVector
-import scodec.bits.HexStringSyntax
 
 case class UInt64(private val underlying: Long) extends Ordered[UInt64] {
   override def compare(o: UInt64): Int =
     java.lang.Long.compareUnsigned(underlying, o.underlying)
+  private def compare(o: Long): Int =
+    java.lang.Long.compareUnsigned(underlying, o)
+  private def compare(o: Int): Int =
+    java.lang.Long.compareUnsigned(underlying, o)
   private def compare(other: MilliSatoshi): Int = other.toLong match {
     case l if l < 0 =>
       1 // if @param 'other' is negative then is always smaller than 'this'
@@ -20,6 +22,14 @@ case class UInt64(private val underlying: Long) extends Ordered[UInt64] {
   def >(other: MilliSatoshi): Boolean = compare(other) > 0
   def <=(other: MilliSatoshi): Boolean = compare(other) <= 0
   def >=(other: MilliSatoshi): Boolean = compare(other) >= 0
+  def <(other: Long): Boolean = compare(other) < 0
+  def >(other: Long): Boolean = compare(other) > 0
+  def <=(other: Long): Boolean = compare(other) <= 0
+  def >=(other: Long): Boolean = compare(other) >= 0
+  def <(other: Int): Boolean = compare(other) < 0
+  def >(other: Int): Boolean = compare(other) > 0
+  def <=(other: Int): Boolean = compare(other) <= 0
+  def >=(other: Int): Boolean = compare(other) >= 0
 
   def toByteVector: ByteVector = ByteVector.fromLong(underlying)
   def toBigInt: BigInt = (BigInt(underlying >>> 1) << 1) + (underlying & 1)
