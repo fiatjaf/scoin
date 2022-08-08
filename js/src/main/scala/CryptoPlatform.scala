@@ -9,7 +9,7 @@ import scala.scalajs.js.annotation.JSGlobal
 import scala.scalajs.js.typedarray.Uint8Array
 import scodec.bits.ByteVector
 
-trait CryptoPlatform {
+private[scoin] trait CryptoPlatform {
   import Crypto._
 
   def G = PublicKey(

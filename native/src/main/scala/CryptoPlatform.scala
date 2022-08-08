@@ -6,7 +6,7 @@ import scala.scalanative.unsigned._
 import scodec.bits.ByteVector
 import sha256.{Hmac, Sha256}
 
-trait CryptoPlatform {
+private[scoin] trait CryptoPlatform {
   import Crypto._
 
   def G = PublicKey(

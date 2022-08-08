@@ -18,7 +18,7 @@ import org.bouncycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 import org.bouncycastle.math.ec.ECPoint
 import scodec.bits.ByteVector
 
-trait CryptoPlatform {
+private[scoin] trait CryptoPlatform {
   import Crypto._
 
   def G = PublicKey(ByteVector.view(curve.getG().getEncoded(true)))
