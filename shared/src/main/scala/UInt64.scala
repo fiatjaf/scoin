@@ -1,6 +1,5 @@
 package scoin
 
-import scala.language.implicitConversions
 import scodec.bits.ByteVector
 
 case class UInt64(private val underlying: Long) extends Ordered[UInt64] {

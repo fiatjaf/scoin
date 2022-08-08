@@ -8,7 +8,7 @@ import scoin._
 import scoin.ln._
 import scoin.ln.CommonCodecs._
 
-object LightningMessageCodecs {
+object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
   val featuresCodec: Codec[Features[Feature]] =
     varsizebinarydata.xmap[Features[Feature]](
       { bytes => Features(bytes) },
@@ -203,9 +203,9 @@ object LightningMessageCodecs {
     (("signature" | bytes64) ::
       nodeAnnouncementWitnessCodec).as[NodeAnnouncement]
 
-  private case class MessageFlags(optionChannelHtlcMax: Boolean)
+  case class MessageFlags(optionChannelHtlcMax: Boolean)
 
-  private val messageFlagsCodec =
+  val messageFlagsCodec =
     ("messageFlags" | (ignore(7) :: bool)).as[MessageFlags]
 
   val reverseBool: Codec[Boolean] = bool.xmap[Boolean](b => !b, b => !b)
@@ -217,48 +217,8 @@ object LightningMessageCodecs {
     ("channelFlags" | (ignore(6) :: reverseBool :: reverseBool))
       .as[ChannelUpdate.ChannelFlags]
 
-  val channelUpdateChecksumCodec =
-    ("chainHash" | bytes32) ::
-      ("shortChannelId" | shortchannelid) ::
-      (messageFlagsCodec
-        .consume { messageFlags =>
-          channelFlagsCodec ::
-            ("cltvExpiryDelta" | cltvExpiryDelta) ::
-            ("htlcMinimumMsat" | millisatoshi) ::
-            ("feeBaseMsat" | millisatoshi32) ::
-            ("feeProportionalMillionths" | uint32) ::
-            ("htlcMaximumMsat" | conditional(
-              messageFlags.optionChannelHtlcMax,
-              millisatoshi
-            ))
-        } {
-          // The purpose of this is to tell scodec how to derive the message flags from the data, so we can remove that field
-          // from the codec definition and the case class, making it purely a serialization detail.
-          case (_, _, _, _, _, htlcMaximumMsatOpt) =>
-            MessageFlags(optionChannelHtlcMax = htlcMaximumMsatOpt.isDefined)
-        })
-
-  val channelUpdateWitnessCodec =
-    ("chainHash" | bytes32) ::
-      ("shortChannelId" | shortchannelid) ::
-      ("timestamp" | timestampSecond) ::
-      (messageFlagsCodec
-        .consume { messageFlags =>
-          channelFlagsCodec ::
-            ("cltvExpiryDelta" | cltvExpiryDelta) ::
-            ("htlcMinimumMsat" | millisatoshi) ::
-            ("feeBaseMsat" | millisatoshi32) ::
-            ("feeProportionalMillionths" | uint32) ::
-            ("htlcMaximumMsat" | conditional(
-              messageFlags.optionChannelHtlcMax,
-              millisatoshi
-            )) ::
-            ("tlvStream" | ChannelUpdateTlv.channelUpdateTlvCodec)
-        } {
-          // same comment above
-          case (_, _, _, _, _, htlcMaximumMsatOpt, _) =>
-            MessageFlags(optionChannelHtlcMax = htlcMaximumMsatOpt.isDefined)
-        })
+  // val channelUpdateChecksumCodec defined on LightningMessageCodecsVersionCompat
+  // val channelUpdateWitnessCodec defined on LightningMessageCodecsVersionCompat
 
   val channelUpdateCodec: Codec[ChannelUpdate] = (("signature" | bytes64) ::
     channelUpdateWitnessCodec).as[ChannelUpdate]

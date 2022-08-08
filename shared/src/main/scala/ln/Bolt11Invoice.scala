@@ -450,7 +450,7 @@ object Bolt11Invoice {
     */
   case class InvoiceFeatures(features: Features[Feature]) extends TaggedField
 
-  object Codecs {
+  object Codecs extends Bolt11CodecsVersionCompat {
     import scoin.ln.CommonCodecs._
     import scodec.bits.BitVector
     import scodec.codecs._
@@ -473,18 +473,7 @@ object Bolt11Invoice {
         ) // we infer the number of items by the size of the data
     )
 
-    def alignedBytesCodec[A](valueCodec: Codec[A]): Codec[A] = Codec[A](
-      (value: A) => valueCodec.encode(value),
-      (wire: BitVector) =>
-        (limitedSizeBits(
-          wire.size - wire.size % 8,
-          valueCodec
-        ) :: constant(
-          BitVector.fill(wire.size % 8)(high = false)
-        ))
-          .map(_._1)
-          .decode(wire) // the 'constant' codec ensures that padding is zero
-    )
+    // def alignedBytesCodec[A](valueCodec: Codec[A]): Codec[A] defined by Bolt11CodecsVersionCompat
 
     val dataLengthCodec: Codec[Long] =
       uint(10).xmap(_ * 5, s => (s / 5 + (if (s % 5 == 0) 0 else 1)).toInt)

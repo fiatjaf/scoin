@@ -46,7 +46,6 @@ case class ChannelFeatures(features: Set[PermanentChannelFeature]) {
 }
 
 object ChannelFeatures {
-
   def apply(features: PermanentChannelFeature*): ChannelFeatures =
     ChannelFeatures(Set.from(features))
 
@@ -110,7 +109,7 @@ sealed trait SupportedChannelType extends ChannelType {
   def commitmentFormat: CommitmentFormat
 }
 
-object ChannelTypes {
+object ChannelTypes extends ChannelTypesVersionCompat {
   case object Standard extends SupportedChannelType {
     override def features: Set[ChannelTypeFeature] = Set.empty
     override def paysDirectlyToWallet: Boolean = false
@@ -156,22 +155,7 @@ object ChannelTypes {
     override def toString: String = s"0x${featureBits.toByteVector.toHex}"
   }
 
-  private val features2ChannelType
-      : Map[Features[InitFeature], SupportedChannelType] = Set(
-    Standard,
-    StaticRemoteKey,
-    AnchorOutputs,
-    AnchorOutputsZeroFeeHtlcTx(scidAlias = false, zeroConf = false),
-    AnchorOutputsZeroFeeHtlcTx(scidAlias = false, zeroConf = true),
-    AnchorOutputsZeroFeeHtlcTx(scidAlias = true, zeroConf = false),
-    AnchorOutputsZeroFeeHtlcTx(scidAlias = true, zeroConf = true)
-  )
-    .map(channelType =>
-      Features(
-        channelType.features.map(_ -> FeatureSupport.Mandatory).toMap
-      ) -> channelType
-    )
-    .toMap
+  // protected val features2ChannelType : Map[Features[InitFeature], SupportedChannelType] defined in ChannelFeaturesVersionCompat
 
   // NB: Bolt 2: features must exactly match in order to identify a channel type.
   def fromFeatures(features: Features[InitFeature]): ChannelType =
