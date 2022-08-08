@@ -4,7 +4,6 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
 import scala.scalanative.unsigned._
 import scodec.bits.ByteVector
-import sha256.{Hmac, Sha256}
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
@@ -110,17 +109,24 @@ private[scoin] trait CryptoPlatform {
   def sha256(x: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector(
-        Sha256.sha256(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
+        sha256.sha256(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
       )
     )
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
-    throw new NotImplementedError("not implemented")
+    ByteVector(
+      hmac512
+        .hmac(
+          key.toArray.map[UByte](_.toUByte),
+          message.toArray.map[UByte](_.toUByte)
+        )
+        .map[Byte](_.toByte)
+    )
 
   def hmac256(key: ByteVector, message: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector(
-        Hmac
+        hmac256
           .hmac(
             key.toArray.map[UByte](_.toUByte),
             message.toArray.map[UByte](_.toUByte)
@@ -130,7 +136,14 @@ private[scoin] trait CryptoPlatform {
     )
 
   def ripemd160(input: ByteVector): ByteVector =
-    throw new NotImplementedError("not implemented")
+    ByteVector(
+      ripemd160
+        .ripemd160(
+          key.toArray.map[UByte](_.toUByte),
+          message.toArray.map[UByte](_.toUByte)
+        )
+        .map[Byte](_.toByte)
+    )
 
   /** @param key
     *   serialized public key
