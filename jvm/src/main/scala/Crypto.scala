@@ -31,7 +31,7 @@ object Crypto {
   private val one = BigInteger.valueOf(1)
   private lazy val nativeSecp256k1: Secp256k1 = Secp256k1.get()
 
-  val halfCurveOrder = params.getN().shiftRight(1)
+  lazy val halfCurveOrder = params.getN().shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys

@@ -13,7 +13,7 @@ object Crypto {
   private val zero = BigInteger.valueOf(0)
   private val one = BigInteger.valueOf(1)
 
-  val halfCurveOrder = Curve.n.shiftRight(1)
+  lazy val halfCurveOrder = Curve.n.shiftRight(1)
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))
 
   /** Secp256k1 private key, which a 32 bytes value We assume that private keys
