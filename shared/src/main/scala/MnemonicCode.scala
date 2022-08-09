@@ -1,10 +1,8 @@
 package scoin
 
+import java.nio.{ByteBuffer, IntBuffer}
 import scala.annotation.tailrec
 import scala.io.Source
-import org.bouncycastle.crypto.digests.SHA512Digest
-import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator
-import org.bouncycastle.crypto.params.KeyParameter
 import scodec.bits.ByteVector
 
 /** see https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
@@ -99,18 +97,75 @@ object MnemonicCode {
     * @return
     *   a seed derived from the mnemonic words and passphrase
     */
-  def toSeed(mnemonics: Seq[String], passphrase: String): ByteVector = {
-    val gen = new PKCS5S2ParametersGenerator(new SHA512Digest())
-    gen.init(
-      mnemonics.mkString(" ").getBytes("UTF-8"),
-      ("mnemonic" + passphrase).getBytes("UTF-8"),
-      2048
+  def toSeed(mnemonics: Seq[String], passphrase: String): ByteVector =
+    pbkdf2Sha512(
+      ByteVector.view(mnemonics.mkString(" ").getBytes("UTF-8")),
+      ByteVector.view(("mnemonic" + passphrase).getBytes("UTF-8")),
+      2048,
+      64
     )
-    val keyParams =
-      gen.generateDerivedParameters(512).asInstanceOf[KeyParameter]
-    ByteVector.view(keyParams.getKey)
-  }
 
   def toSeed(mnemonics: String, passphrase: String): ByteVector =
     toSeed(mnemonics.split(" ").toSeq, passphrase)
+
+  private def pbkdf2Sha512(
+      password: ByteVector,
+      salt: ByteVector,
+      iterations: Int,
+      keyLen: Int
+  ): ByteVector = {
+    val hashLen = 64
+    val numBlocks = (keyLen + hashLen - 1) / hashLen
+
+    // pseudo-random function defined in the spec
+    @inline def prf(buf: ByteVector) = Crypto.hmac512(password, buf)
+
+    // this is a translation of the helper function "F" defined in the spec
+    def calculateBlock(blockNum: Int): Array[Byte] = {
+      // u_1
+      val u_1 = prf(
+        ByteVector.concat(List(salt ++ ByteVector.fromInt(blockNum)))
+      )
+
+      val buf = IntBuffer
+        .allocate(u_1.size.toInt / 4)
+        .put(ByteBuffer.wrap(u_1.toArray).asIntBuffer)
+        .array
+        .clone
+      var u = u_1
+      var iter = 1
+      while (iter < iterations) {
+        // u_2 through u_c : calculate u_n and xor it with the previous value
+        u = prf(u)
+        xorInPlace(buf, u.toArray)
+        iter += 1
+      }
+
+      val ret = ByteBuffer.allocate(u_1.size.toInt)
+      ret.asIntBuffer.put(buf)
+      ret.array
+    }
+
+    // how many blocks we'll need to calculate (the last may be truncated)
+    val blocksNeeded = (keyLen.toFloat / 20).ceil.toInt
+
+    ByteVector.view(
+      (1 to blocksNeeded).iterator
+        .map(calculateBlock)
+        .flatten
+        .take(keyLen)
+        .toArray
+    )
+  }
+
+  private def xorInPlace(buff: Array[Int], a2: Array[Byte]): Unit = {
+    val b2 = ByteBuffer.wrap(a2).asIntBuffer
+
+    val len = buff.array.size
+    var i = 0
+    while (i < len) {
+      buff(i) ^= b2.get(i)
+      i += 1
+    }
+  }
 }

@@ -124,6 +124,8 @@ private[scoin] trait CryptoPlatform {
 
   def sha256 = (x: ByteVector) => ByteVector32(hash(new SHA256Digest)(x))
 
+  def sha512 = (x: ByteVector) => ByteVector32(hash(new SHA512Digest)(x))
+
   def hmac512(key: ByteVector, data: ByteVector): ByteVector = {
     val mac = new HMac(new SHA512Digest())
     mac.init(new KeyParameter(key.toArray))

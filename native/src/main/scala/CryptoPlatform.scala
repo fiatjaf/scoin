@@ -113,6 +113,11 @@ private[scoin] trait CryptoPlatform {
       )
     )
 
+  def sha512(x: ByteVector): ByteVector =
+    ByteVector(
+      sha512.sha512(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
+    )
+
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
     ByteVector(
       hmac512

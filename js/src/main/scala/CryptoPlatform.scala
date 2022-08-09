@@ -115,6 +115,11 @@ private[scoin] trait CryptoPlatform {
       )
     )
 
+  def sha512(input: ByteVector): ByteVector =
+    ByteVector.fromValidHex(
+      HashJS.sha512().update(input.toHex, "hex").digest("hex")
+    )
+
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
     ByteVector.fromValidHex(
       HashJS
