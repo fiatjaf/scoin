@@ -4,6 +4,11 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
 import scala.scalanative.unsigned._
 import scodec.bits.ByteVector
+import sha256.{sha256 => sha256sum}
+import sha512.{sha512 => sha512sum}
+import ripemd160.{ripemd160 => ripemd160sum}
+import hmac256.{hmac => hmac256sum}
+import hmac512.{hmac => hmac512sum}
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
@@ -109,44 +114,38 @@ private[scoin] trait CryptoPlatform {
   def sha256(x: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector(
-        sha256.sha256(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
+        sha256sum(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
       )
     )
 
   def sha512(x: ByteVector): ByteVector =
     ByteVector(
-      sha512.sha512(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
+      sha512sum(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
     )
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
     ByteVector(
-      hmac512
-        .hmac(
-          key.toArray.map[UByte](_.toUByte),
-          message.toArray.map[UByte](_.toUByte)
-        )
+      hmac512sum(
+        key.toArray.map[UByte](_.toUByte),
+        data.toArray.map[UByte](_.toUByte)
+      )
         .map[Byte](_.toByte)
     )
 
   def hmac256(key: ByteVector, message: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector(
-        hmac256
-          .hmac(
-            key.toArray.map[UByte](_.toUByte),
-            message.toArray.map[UByte](_.toUByte)
-          )
+        hmac256sum(
+          key.toArray.map[UByte](_.toUByte),
+          message.toArray.map[UByte](_.toUByte)
+        )
           .map[Byte](_.toByte)
       )
     )
 
   def ripemd160(input: ByteVector): ByteVector =
     ByteVector(
-      ripemd160
-        .ripemd160(
-          key.toArray.map[UByte](_.toUByte),
-          message.toArray.map[UByte](_.toUByte)
-        )
+      ripemd160sum(input.toArray.map[UByte](_.toUByte))
         .map[Byte](_.toByte)
     )
 
