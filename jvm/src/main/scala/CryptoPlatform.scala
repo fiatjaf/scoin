@@ -1,5 +1,6 @@
 package scoin
 
+import java.security.SecureRandom
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
 import fr.acinq.secp256k1.Secp256k1
@@ -20,6 +21,13 @@ import scodec.bits.ByteVector
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
+
+  private val secureRandom = new SecureRandom
+  def randomBytes(length: Int): ByteVector = {
+    val buffer = new Array[Byte](length)
+    secureRandom.nextBytes(buffer)
+    ByteVector.view(buffer)
+  }
 
   def G = PublicKey(ByteVector.view(curve.getG().getEncoded(true)))
   def N: BigInteger = curve.getN
@@ -208,56 +216,5 @@ private[scoin] trait CryptoPlatform {
       recoveryId
     )
     PublicKey.fromBin(ByteVector.view(bin))
-  }
-
-  private[this] def recoverPoint(x: BigInteger): (PublicKey, PublicKey) = {
-    val x1 = curve.getCurve.fromBigInteger(x)
-    val square = x1
-      .square()
-      .add(curve.getCurve.getA)
-      .multiply(x1)
-      .add(curve.getCurve.getB)
-    val y1 = square.sqrt()
-    val y2 = y1.negate()
-    val R1 = curve.getCurve
-      .createPoint(x1.toBigInteger, y1.toBigInteger)
-      .normalize()
-    val R2 = curve.getCurve
-      .createPoint(x1.toBigInteger, y2.toBigInteger)
-      .normalize()
-    if (y1.testBitZero())
-      (
-        PublicKey(ByteVector.view(R2.getEncoded(true))),
-        PublicKey(ByteVector.view(R1.getEncoded(true)))
-      )
-    else
-      (
-        PublicKey(ByteVector.view(R1.getEncoded(true))),
-        PublicKey(ByteVector.view(R2.getEncoded(true)))
-      )
-  }
-
-  def recoverPublicKey(
-      signature: ByteVector64,
-      message: ByteVector
-  ): (PublicKey, PublicKey) = {
-    val (r, s) = decodeSignatureCompact(signature)
-    val m = new BigInteger(1, message.toArray)
-
-    val (p1, p2) = recoverPoint(r)
-    val Q1 = (p1
-      .multiply(PrivateKey(s))
-      .subtract(
-        PublicKey(ByteVector.view(curve.getG.multiply(m).getEncoded(true)))
-      ))
-      .multiply(PrivateKey(r.modInverse(curve.getN)))
-    val Q2 = (p2
-      .multiply(PrivateKey(s))
-      .subtract(
-        PublicKey(ByteVector.view(curve.getG.multiply(m).getEncoded(true)))
-      ))
-      .multiply(PrivateKey(r.modInverse(curve.getN)))
-
-    (Q1, Q2)
   }
 }

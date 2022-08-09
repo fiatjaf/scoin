@@ -28,13 +28,14 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     )
   )
   .jsSettings(
-    scalaVersion := "3.1.3"
+    scalaVersion := "3.1.3",
+    libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13)
   )
   .nativeSettings(
     scalaVersion := "3.1.3",
     libraryDependencies ++= Seq(
       "com.fiatjaf" %%% "sn-sha256" % "0.4.0",
-      "com.fiatjaf" %%% "sn-secp256k1" % "0.2.0"
+      "com.fiatjaf" %%% "sn-secp256k1" % "0.3.0"
     )
   )
 

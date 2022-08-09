@@ -1,19 +1,10 @@
 package scoin
 
-import java.security.SecureRandom
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
 import scodec.bits.ByteVector
 
 object Crypto extends CryptoPlatform {
-  val secureRandom = new SecureRandom
-
-  def randomBytes(length: Int): ByteVector = {
-    val buffer = new Array[Byte](length)
-    secureRandom.nextBytes(buffer)
-    ByteVector.view(buffer)
-  }
-
   lazy val halfCurveOrder = N.shiftRight(1)
 
   def fixSize(data: ByteVector): ByteVector32 = ByteVector32(data.padLeft(32))

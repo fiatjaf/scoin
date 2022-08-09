@@ -4,29 +4,35 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
 import scala.scalanative.unsigned._
 import scodec.bits.ByteVector
-import sha256.{sha256 => sha256sum}
-import sha512.{sha512 => sha512sum}
-import ripemd160.{ripemd160 => ripemd160sum}
+import sha256.{hash => sha256sum}
+import sha512.{hash => sha512sum}
 import hmac256.{hmac => hmac256sum}
 import hmac512.{hmac => hmac512sum}
+import ripemd160.{hash => ripemd160sum}
+import secp256k1.Secp256k1
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
 
+  def randomBytes(length: Int): ByteVector = {
+    ByteVector(
+      (1 to (length.toDouble / 32).ceil.toInt).iterator
+        .map(_ => secp256k1.createPrivateKey().value.map(_.toByte))
+        .reduce(_ ++ _)
+        .take(length)
+    )
+  }
+
   def G = PublicKey(
     ByteVector(
-      secp256k1.Secp256k1.G.value.toArray.map[Byte](_.toByte)
+      Secp256k1.G.value.toArray.map[Byte](_.toByte)
     )
   )
-  def N: BigInteger =
-    throw new NotImplementedError("must update sn-secp256k1")
+  def N: BigInteger = Secp256k1.N
 
   private[scoin] class PrivateKeyPlatform(value: ByteVector32) {
     lazy val underlying =
-      secp256k1.Keys
-        .loadPrivateKey(value.toArray.map(_.toUByte))
-        .toOption
-        .get
+      secp256k1.loadPrivateKey(value.toArray.map(_.toUByte)).toOption.get
 
     def add(that: PrivateKey): PrivateKey =
       PrivateKey(
@@ -46,7 +52,7 @@ private[scoin] trait CryptoPlatform {
           ByteVector(
             underlying
               .add(
-                secp256k1.Keys
+                secp256k1
                   .loadPrivateKey(that.value.toArray.map(_.toUByte))
                   .toOption
                   .get
@@ -79,20 +85,50 @@ private[scoin] trait CryptoPlatform {
 
   private[scoin] class PublicKeyPlatform(value: ByteVector) {
     lazy val underlying =
-      secp256k1.Keys.loadPublicKey(value.toArray.map(_.toUByte)).toOption.get
+      secp256k1.loadPublicKey(value.toArray.map(_.toUByte)).toOption.get
 
     def add(that: PublicKey): PublicKey =
-      throw new NotImplementedError("must update sn-secp256k1")
+      PublicKey(
+        ByteVector(
+          underlying
+            .add(
+              that.value.toArray.map(_.toUByte)
+            )
+            .value
+            .map(_.toByte)
+        )
+      )
 
     def add(that: PrivateKey): PublicKey =
       PublicKey(
         ByteVector(
-          underlying.add(that.value.toArray.map(_.toUByte)).value.map(_.toByte)
+          underlying
+            .add(
+              that.value.toArray.map(_.toUByte)
+            )
+            .value
+            .map(_.toByte)
         )
       )
 
     def subtract(that: PublicKey): PublicKey =
-      throw new NotImplementedError("must update sn-secp256k1")
+      PublicKey(
+        ByteVector(
+          underlying
+            .add(
+              secp256k1
+                .loadPrivateKey(that.value.toArray.map(_.toUByte))
+                .toOption
+                .get
+                .negate()
+                .value
+                .toArray
+                .map(_.toUByte)
+            )
+            .value
+            .map(_.toByte)
+        )
+      )
 
     def multiply(that: PrivateKey): PublicKey =
       PublicKey(
@@ -104,8 +140,9 @@ private[scoin] trait CryptoPlatform {
         )
       )
 
-    def toUncompressedBin: ByteVector =
-      throw new NotImplementedError("must update sn-secp256k1")
+    def toUncompressedBin: ByteVector = ByteVector(
+      underlying.toUncompressed().map(_.toByte)
+    )
   }
 
   def sha1(x: ByteVector): ByteVector32 =
@@ -114,7 +151,8 @@ private[scoin] trait CryptoPlatform {
   def sha256(x: ByteVector): ByteVector32 =
     ByteVector32(
       ByteVector(
-        sha256sum(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
+        sha256sum(x.toArray.map[UByte](_.toUByte))
+          .map[Byte](_.toByte)
       )
     )
 
@@ -157,7 +195,7 @@ private[scoin] trait CryptoPlatform {
     *   secp256k1 curve
     */
   def isPubKeyValidStrict(key: ByteVector): Boolean = isPubKeyValidLax(key) &&
-    secp256k1.Keys.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
+    secp256k1.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
 
   // copied from noble-secp256k1
   def compact2der(signature: ByteVector64): ByteVector = {
@@ -203,5 +241,20 @@ private[scoin] trait CryptoPlatform {
       message: ByteVector,
       recoveryId: Int
   ): PublicKey =
-    throw new NotImplementedError("must update sn-secp256k1")
+    PublicKey(
+      ByteVector64(
+        ByteVector(
+          secp256k1
+            .recoverPublicKey(
+              message.toArray.map(_.toUByte),
+              signature.bytes.toArray.map(_.toUByte),
+              recoveryId
+            )
+            .toOption
+            .get
+            .value
+            .map(_.toByte)
+        )
+      )
+    )
 }

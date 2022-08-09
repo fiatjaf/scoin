@@ -1336,7 +1336,6 @@ object Psbt {
   // @formatter:on
 
   object Codecs {
-
     def read(input: InputStream): Try[Psbt] = for {
       _ <- readMagicBytes(input)
       _ <- readSeparator(input)

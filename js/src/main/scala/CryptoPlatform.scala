@@ -2,6 +2,7 @@ package scoin
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.math.BigInteger
+import java.security.SecureRandom
 import scala.util.Try
 import scala.language.implicitConversions
 import scala.scalajs.js
@@ -11,6 +12,13 @@ import scodec.bits.ByteVector
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
+
+  private val secureRandom = new SecureRandom
+  def randomBytes(length: Int): ByteVector = {
+    val buffer = new Array[Byte](length)
+    secureRandom.nextBytes(buffer)
+    ByteVector.view(buffer)
+  }
 
   def G = PublicKey(
     ByteVector.view(new Point(Curve.Gx, Curve.Gy).toRawBytes(true))
