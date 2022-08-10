@@ -4,7 +4,7 @@ ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
 ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "0.1.0"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 lazy val root = project.in(file("."))
@@ -34,7 +34,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .nativeSettings(
     scalaVersion := "3.1.3",
     libraryDependencies ++= Seq(
-      "com.fiatjaf" %%% "sn-sha256" % "0.4.0",
+      "com.fiatjaf" %%% "sn-sha256" % "0.4.1",
       "com.fiatjaf" %%% "sn-secp256k1" % "0.3.0"
     )
   )
