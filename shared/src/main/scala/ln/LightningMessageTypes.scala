@@ -8,7 +8,7 @@ import scoin._
 import scoin.Crypto.{PrivateKey, PublicKey}
 
 // @formatter:off
-sealed trait LightningMessage extends Serializable
+trait LightningMessage extends Serializable
 sealed trait SetupMessage extends LightningMessage
 sealed trait ChannelMessage extends LightningMessage
 sealed trait HtlcMessage extends LightningMessage

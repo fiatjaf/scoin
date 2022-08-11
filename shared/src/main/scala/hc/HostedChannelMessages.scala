@@ -1,45 +1,38 @@
-package codecs
+package scoin.hc
 
 import java.nio.{ByteBuffer, ByteOrder}
 import java.nio.charset.StandardCharsets
-import scala.scalanative.unsigned._
 import scodec.bits._
 import scodec.codecs._
 import scodec.Codec
+
 import scoin._
 import scoin.ln._
 import scoin.ln.TlvCodecs._
 import scoin.ln.CommonCodecs._
 import scoin.Crypto.{PublicKey, PrivateKey}
+import scoin.hc.HostedChannelTags._
+import scoin.hc.HostedChannelCodecs._
 
-import codecs.HostedChannelTags._
-import codecs.HostedChannelCodecs._
-
-sealed trait HostedClientMessage
-sealed trait HostedServerMessage
-sealed trait HostedGossipMessage
-sealed trait HostedPreimageMessage
-sealed trait ChannelModifier
-    extends HostedClientMessage
-    with HostedServerMessage
+sealed trait HostedChannelMessage extends LightningMessage
 
 case class InvokeHostedChannel(
     chainHash: ByteVector32,
     refundScriptPubKey: ByteVector,
     secret: ByteVector = ByteVector.empty
-) extends HostedClientMessage {
+) extends HostedChannelMessage {
   val finalSecret: ByteVector = secret.take(128)
   override def toString(): String = s"InvokeHostedChannel()"
 }
 
 case class InitHostedChannel(
-    maxHtlcValueInFlightMsat: ULong,
+    maxHtlcValueInFlightMsat: UInt64,
     htlcMinimumMsat: MilliSatoshi,
     maxAcceptedHtlcs: Int,
     channelCapacityMsat: MilliSatoshi,
     initialClientBalanceMsat: MilliSatoshi,
     features: List[Int] = Nil
-) extends HostedServerMessage {
+) extends HostedChannelMessage {
   override def toString(): String =
     s"InitHostedChannel(${channelCapacityMsat})"
 }
@@ -48,30 +41,7 @@ case class HostedChannelBranding(
     rgbColor: Color,
     pngIcon: Option[ByteVector],
     contactInfo: String
-) extends HostedServerMessage
-
-object LastCrossSignedState {
-  def empty = LastCrossSignedState(
-    isHost = false,
-    refundScriptPubKey = ByteVector.empty,
-    initHostedChannel = InitHostedChannel(
-      maxHtlcValueInFlightMsat = 0.toULong,
-      htlcMinimumMsat = MilliSatoshi(0),
-      maxAcceptedHtlcs = 0,
-      channelCapacityMsat = MilliSatoshi(0),
-      initialClientBalanceMsat = MilliSatoshi(0)
-    ),
-    blockDay = 0,
-    localBalanceMsat = MilliSatoshi(0),
-    remoteBalanceMsat = MilliSatoshi(0),
-    localUpdates = 0,
-    remoteUpdates = 0,
-    incomingHtlcs = List.empty,
-    outgoingHtlcs = List.empty,
-    remoteSigOfLocal = ByteVector64.Zeroes,
-    localSigOfRemote = ByteVector64.Zeroes
-  )
-}
+) extends HostedChannelMessage
 
 case class LastCrossSignedState(
     isHost: Boolean,
@@ -86,8 +56,7 @@ case class LastCrossSignedState(
     outgoingHtlcs: List[UpdateAddHtlc],
     remoteSigOfLocal: ByteVector64,
     localSigOfRemote: ByteVector64
-) extends HostedServerMessage
-    with HostedClientMessage {
+) extends HostedChannelMessage {
   override def toString(): String =
     s"LastCrossSignedState($blockDay, balances=${localBalanceMsat}/${remoteBalanceMsat}, updates=$localUpdates/$remoteUpdates, incomingHtlcs=$incomingHtlcs, outgoingHtlcs=$outgoingHtlcs)"
 
@@ -175,8 +144,7 @@ case class StateUpdate(
     localUpdates: Long,
     remoteUpdates: Long,
     localSigOfRemoteLCSS: ByteVector64
-) extends HostedServerMessage
-    with HostedClientMessage {
+) extends HostedChannelMessage {
   override def toString(): String =
     s"StateUpdate($blockDay, updates=$localUpdates/$remoteUpdates)"
 }
@@ -187,17 +155,17 @@ case class StateOverride(
     localUpdates: Long,
     remoteUpdates: Long,
     localSigOfRemoteLCSS: ByteVector64
-) extends HostedServerMessage
+) extends HostedChannelMessage
 
 case class AnnouncementSignature(
     nodeSignature: ByteVector64,
     wantsReply: Boolean
-) extends HostedGossipMessage
+) extends HostedChannelMessage
 
 case class ResizeChannel(
     newCapacity: Satoshi,
     clientSig: ByteVector64 = ByteVector64.Zeroes
-) extends HostedClientMessage {
+) extends HostedChannelMessage {
   def isRemoteResized(remote: LastCrossSignedState): Boolean =
     newCapacity.toMilliSatoshi == remote.initHostedChannel.channelCapacityMsat
 
@@ -215,23 +183,22 @@ case class ResizeChannel(
     buffer.putLong(newCapacity.toLong)
     ByteVector.view(bin)
   }
-  lazy val newCapacityMsatU64: ULong = newCapacity.toMilliSatoshi.toLong.toULong
 }
 
-case class AskBrandingInfo(chainHash: ByteVector32) extends HostedClientMessage
+case class AskBrandingInfo(chainHash: ByteVector32) extends HostedChannelMessage
 
 case class QueryPublicHostedChannels(chainHash: ByteVector32)
-    extends HostedGossipMessage {}
+    extends HostedChannelMessage {}
 
 case class ReplyPublicHostedChannelsEnd(chainHash: ByteVector32)
-    extends HostedGossipMessage {}
+    extends HostedChannelMessage {}
 
 // Queries
 case class QueryPreimages(hashes: List[ByteVector32] = Nil)
-    extends HostedPreimageMessage {}
+    extends HostedChannelMessage {}
 
 case class ReplyPreimages(preimages: List[ByteVector32] = Nil)
-    extends HostedPreimageMessage {}
+    extends HostedChannelMessage {}
 
 object HostedError {
   final val ERR_HOSTED_WRONG_BLOCKDAY = "0001"

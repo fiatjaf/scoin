@@ -1,4 +1,4 @@
-package codecs
+package scoin.hc
 
 object HostedChannelTags {
   final val HC_INVOKE_HOSTED_CHANNEL_TAG = 65535
