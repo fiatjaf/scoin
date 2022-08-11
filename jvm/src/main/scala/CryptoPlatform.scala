@@ -19,6 +19,8 @@ import org.bouncycastle.crypto.signers.{ECDSASigner, HMacDSAKCalculator}
 import org.bouncycastle.math.ec.ECPoint
 import scodec.bits.ByteVector
 
+import ChaCha20Poly1305.{encrypt => c20p1305encrypt, decrypt => c20p1305decrypt}
+
 private[scoin] trait CryptoPlatform {
   import Crypto._
 
@@ -216,5 +218,36 @@ private[scoin] trait CryptoPlatform {
       recoveryId
     )
     PublicKey.fromBin(ByteVector.view(bin))
+  }
+
+  def chacha20(
+      input: ByteVector,
+      key: ByteVector,
+      nonce: ByteVector
+  ): ByteVector = ChaCha20.xor(input, key, nonce)
+
+  object ChaCha20Poly1305 {
+    def encrypt(
+        plaintext: ByteVector,
+        key: ByteVector,
+        nonce: ByteVector,
+        aad: ByteVector
+    ): ByteVector = {
+      val (payload, mac) = c20p1305encrypt(plaintext, key, nonce, aad)
+      payload ++ mac
+    }
+
+    def decrypt(
+        ciphertext: ByteVector,
+        key: ByteVector,
+        nonce: ByteVector,
+        aad: ByteVector
+    ): ByteVector = c20p1305decrypt(
+      ciphertext.dropRight(16),
+      key,
+      nonce,
+      aad,
+      ciphertext.takeRight(16)
+    )
   }
 }

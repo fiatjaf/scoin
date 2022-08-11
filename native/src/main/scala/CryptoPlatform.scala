@@ -9,6 +9,8 @@ import sha512.{hash => sha512sum}
 import hmac256.{hmac => hmac256sum}
 import hmac512.{hmac => hmac512sum}
 import ripemd160.{hash => ripemd160sum}
+import ChaCha20.xor
+import ChaCha20Poly1305.{encrypt => c20p1305encrypt, decrypt => c20p1305decrypt}
 import secp256k1.Secp256k1
 
 private[scoin] trait CryptoPlatform {
@@ -257,4 +259,50 @@ private[scoin] trait CryptoPlatform {
         )
       )
     )
+
+  def chacha20(
+      input: ByteVector,
+      key: ByteVector,
+      nonce: ByteVector
+  ): ByteVector = ByteVector(
+    ChaCha20
+      .xor(
+        input.toArray.map(_.toUByte),
+        key.toArray.map(_.toUByte),
+        nonce.toArray.map(_.toUByte)
+      )
+      .map[Byte](_.toByte)
+  )
+
+  object ChaCha20Poly1305 {
+    def encrypt(
+        plaintext: ByteVector,
+        key: ByteVector,
+        nonce: ByteVector,
+        aad: ByteVector
+    ): ByteVector = ByteVector(
+      c20p1305encrypt(
+        plaintext.toArray.map(_.toUByte),
+        key.toArray.map(_.toUByte),
+        nonce.toArray.map(_.toUByte),
+        aad.toArray.map(_.toUByte)
+      )
+        .map[Byte](_.toByte)
+    )
+
+    def decrypt(
+        ciphertext: ByteVector,
+        key: ByteVector,
+        nonce: ByteVector,
+        aad: ByteVector
+    ): ByteVector = ByteVector(
+      c20p1305decrypt(
+        ciphertext.toArray.map(_.toUByte),
+        key.toArray.map(_.toUByte),
+        nonce.toArray.map(_.toUByte),
+        aad.toArray.map(_.toUByte)
+      ).get
+        .map[Byte](_.toByte)
+    )
+  }
 }
