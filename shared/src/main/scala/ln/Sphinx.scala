@@ -1,4 +1,4 @@
-package codecs
+package scoin.ln
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}

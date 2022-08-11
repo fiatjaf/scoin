@@ -1,5 +1,6 @@
 package scoin.hc
 
+import scala.util.Try
 import scodec.codecs._
 import scodec.bits._
 import scodec.{Attempt, Err}
@@ -111,7 +112,7 @@ object HostedChannelCodecs {
   def decodeHostedMessage(
       tag: Int,
       data: ByteVector
-  ): Attempt[LightningMessage] = {
+  ): Try[LightningMessage] = {
     val bitVector = data.toBitVector
     val decodeAttempt = tag match {
       case HC_STATE_UPDATE_TAG      => stateUpdateCodec.decode(bitVector)
@@ -137,7 +138,7 @@ object HostedChannelCodecs {
         Attempt failure Err(s"unknown tag for hosted message: $tag")
     }
 
-    decodeAttempt.map(_.value)
+    decodeAttempt.map(_.value).toTry
   }
 
   def encodeHostedMessage(message: LightningMessage): (Int, ByteVector) = {

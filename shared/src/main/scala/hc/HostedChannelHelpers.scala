@@ -36,16 +36,23 @@ object HostedChannelHelpers {
     else pubkey2 ++ pubkey1
   }
 
-  def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 = {
+  def getChannelId(
+      pubkey1: ByteVector,
+      pubkey2: ByteVector
+  ): ByteVector32 = {
     val nodesCombined = hostedNodesCombined(pubkey1, pubkey2)
     Crypto.sha256(nodesCombined)
   }
 
-  def hostedShortChanId(pubkey1: ByteVector, pubkey2: ByteVector): Long = {
+  def getShortChannelId(
+      pubkey1: ByteVector,
+      pubkey2: ByteVector
+  ): ShortChannelId = {
     val stream = new ByteArrayInputStream(
       hostedNodesCombined(pubkey1, pubkey2).toArray
     )
     def getChunk(): Long = Protocol.uint64(stream, ByteOrder.BIG_ENDIAN)
-    List.fill(8)(getChunk()).sum
+    val idLong = List.fill(8)(getChunk()).sum
+    ShortChannelId(idLong)
   }
 }

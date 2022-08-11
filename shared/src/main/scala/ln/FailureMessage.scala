@@ -1,5 +1,6 @@
 package scoin.ln
 
+import scodec.bits.ByteVector
 import scodec.codecs._
 import scodec.{Attempt, Codec}
 import scoin._
@@ -14,6 +15,8 @@ sealed trait FailureMessage {
   // It would be nice to be able to get that value from the discriminated codec directly.
   lazy val code: Int =
     failureMessageCodec.encode(this).flatMap(uint16.decode).require.value
+
+  def toHex: String = ByteVector(scala.math.BigInt(code).toByteArray).toHex
 }
 sealed trait BadOnion extends FailureMessage { def onionHash: ByteVector32 }
 sealed trait Perm extends FailureMessage

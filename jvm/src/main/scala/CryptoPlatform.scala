@@ -134,7 +134,7 @@ private[scoin] trait CryptoPlatform {
 
   def sha256 = (x: ByteVector) => ByteVector32(hash(new SHA256Digest)(x))
 
-  def sha512 = (x: ByteVector) => ByteVector32(hash(new SHA512Digest)(x))
+  def sha512 = (x: ByteVector) => hash(new SHA512Digest)(x)
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector = {
     val mac = new HMac(new SHA512Digest())
@@ -145,13 +145,13 @@ private[scoin] trait CryptoPlatform {
     ByteVector.view(out)
   }
 
-  def hmac256(key: ByteVector, data: ByteVector): ByteVector = {
+  def hmac256(key: ByteVector, data: ByteVector): ByteVector32 = {
     val mac = new HMac(new SHA256Digest())
     mac.init(new KeyParameter(key.toArray))
     mac.update(data.toArray, 0, data.length.toInt)
     val out = new Array[Byte](32)
     mac.doFinal(out, 0)
-    ByteVector.view(out)
+    ByteVector32(ByteVector.view(out))
   }
 
   def ripemd160 = hash(new RIPEMD160Digest) _
