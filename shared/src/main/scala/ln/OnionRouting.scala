@@ -3,6 +3,7 @@ package scoin.ln
 import scodec.bits.ByteVector
 import scodec.codecs._
 import scodec.{Codec, Err}
+
 import scoin._
 import scoin.ln.CommonCodecs.bytes32
 
