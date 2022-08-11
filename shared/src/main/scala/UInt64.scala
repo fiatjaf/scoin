@@ -33,6 +33,7 @@ case class UInt64(private val underlying: Long) extends Ordered[UInt64] {
 
   def toByteVector: ByteVector = ByteVector.fromLong(underlying)
   def toBigInt: BigInt = (BigInt(underlying >>> 1) << 1) + (underlying & 1)
+  def toLong: Long = underlying
 
   override def toString: String =
     java.lang.Long.toUnsignedString(underlying, 10)
