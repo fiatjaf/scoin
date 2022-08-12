@@ -145,8 +145,6 @@ object HostedChannelCodecs {
     val (tag, result) = message match {
       case msg: InvokeHostedChannel =>
         (HC_INVOKE_HOSTED_CHANNEL_TAG, invokeHostedChannelCodec.encode(msg))
-      case msg: LastCrossSignedState =>
-        (HC_LAST_CROSS_SIGNED_STATE_TAG, lastCrossSignedStateCodec.encode(msg))
       case msg: AskBrandingInfo =>
         (HC_ASK_BRANDING_INFO_TAG, askBrandingInfoCodec.encode(msg))
       case msg: ResizeChannel =>
@@ -157,10 +155,10 @@ object HostedChannelCodecs {
         (HC_HOSTED_CHANNEL_BRANDING_TAG, hostedChannelBrandingCodec.encode(msg))
       case msg: StateUpdate =>
         (HC_STATE_UPDATE_TAG, stateUpdateCodec.encode(msg))
-      case msg: LastCrossSignedState =>
-        (HC_LAST_CROSS_SIGNED_STATE_TAG, lastCrossSignedStateCodec.encode(msg))
       case msg: StateOverride =>
         (HC_STATE_OVERRIDE_TAG, stateOverrideCodec.encode(msg))
+      case msg: LastCrossSignedState =>
+        (HC_LAST_CROSS_SIGNED_STATE_TAG, lastCrossSignedStateCodec.encode(msg))
       case msg: Error =>
         (HC_ERROR_TAG, errorCodec.encode(msg))
       case msg: UpdateAddHtlc =>
