@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import scodec.Codec
 
 import scoin._
-import scoin.ln.CommonCodecs
+import scoin.ln.CommonCodecs._
 
 /** see
   * https://github.com/rustyrussell/lightning-rfc/blob/master/early-drafts/shachain.txt
@@ -126,24 +126,31 @@ object ShaChain {
     import scodec.bits.BitVector
     import scodec.codecs._
 
-    // codec for a single map entry (i.e. Vector[Boolean] -> ByteVector
+    // codec for a single map entry (i.e. Vector[Boolean] -> ByteVector32
+    case class Entry(key: Vector[Boolean], value: ByteVector32)
     val entryCodec =
-      vectorOfN(uint16, bool) :: variableSizeBytes(uint16, CommonCodecs.bytes32)
+      (vectorOfN(uint16, bool) :: variableSizeBytes(uint16, bytes32)).as[Entry]
+    val entriesCodec = vectorOfN(uint16, entryCodec).as[Vector[Entry]]
 
     // codec for a Map[Vector[Boolean], ByteVector]: write all k -> v pairs using the codec defined above
     val mapCodec: Codec[Map[Vector[Boolean], ByteVector32]] =
       Codec[Map[Vector[Boolean], ByteVector32]](
         (m: Map[Vector[Boolean], ByteVector32]) =>
-          vectorOfN(uint16, entryCodec).encode(m.toVector),
+          entriesCodec.encode(m.toVector.map((k, v) => Entry(k, v))),
         (b: BitVector) =>
-          vectorOfN(uint16, entryCodec).decode(b).map(_.map(_.toMap))
+          entriesCodec
+            .decode(b)
+            .map(
+              _.map(entries =>
+                entries.map({ case Entry(k, v) => (k, v) }).toMap
+              )
+            )
       )
 
     // our shachain codec
     (("knownHashes" | mapCodec) :: ("lastIndex" | optional(bool, int64)))
       .as[ShaChain]
   }
-
 }
 
 /** Structure used to intelligently store unguessable hashes.
