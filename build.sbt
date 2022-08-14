@@ -4,7 +4,7 @@ ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
 ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
-ThisBuild / version := "0.2.0"
+ThisBuild / version := "0.2.1-SNAPSHOT"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 lazy val root = project.in(file("."))

@@ -133,7 +133,7 @@ object CommonCodecs {
   )
 
   val ipv6address: Codec[Inet6Address] = bytes(16).exmap(
-    b => Attempt.fromTry(Try(Inet6Address.getByAddress(null, b.toArray, null))),
+    b => Attempt.fromTry(Try(Inet6Address.getByAddress("", b.toArray, 0))),
     a => Attempt.fromTry(Try(ByteVector(a.getAddress)))
   )
 

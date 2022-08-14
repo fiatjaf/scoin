@@ -7,9 +7,6 @@ import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuffer
 import scodec.bits._
 
-/** see https://en.bitcoin.it/wiki/Protocol_specification
-  */
-
 case class ByteVector32(bytes: ByteVector) {
   require(bytes.size == 32, s"size must be 32 bytes, is ${bytes.size} bytes")
 
