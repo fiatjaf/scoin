@@ -1,7 +1,15 @@
 scoin
-==========
+=====
 
-A simple Bitcoin library for Scala that is mostly copied from [ACINQ](https://github.com/acinq)'s projects.
+A simple Bitcoin library for Scala that is mostly copied from [ACINQ](https://github.com/acinq)'s projects, then sanitized and shuffled around. It works on Scala JVM, Scala Native and Scala JS.
+
+See API documentation on https://javadoc.io/doc/com.fiatjaf/scoin_3/latest/.
+
+## Projects using scoin
+
+  - https://github.com/fiatjaf/poncho
+  - https://github.com/fiatjaf/immortan
+  - https://github.com/fiatjaf/openchain
 
 ## JavaScript dependencies
 
