@@ -4,7 +4,8 @@ import scala.language.implicitConversions
 import scoin.Crypto.PublicKey
 import scodec.bits.ByteVector
 
-/** see https://en.bitcoin.it/wiki/Protocol_specification
+/** Types and utils related to Bitcoin blockchain objects: blocks, scripts,
+  * transactions, addresses, PSBTs, keys, signatures, hashes.
   */
 package object scoin {
   val MaxScriptElementSize = 520
