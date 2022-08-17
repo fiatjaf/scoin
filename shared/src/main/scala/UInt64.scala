@@ -2,7 +2,6 @@ package scoin
 
 import scala.language.implicitConversions
 import scodec.bits.ByteVector
-import scodec.bits.HexStringSyntax
 
 case class UInt64(private val underlying: Long) extends Ordered[UInt64] {
   override def compare(o: UInt64): Int =
