@@ -11,25 +11,10 @@ See API documentation on https://javadoc.io/doc/com.fiatjaf/scoin_3/latest/.
   - https://github.com/fiatjaf/immortan
   - https://github.com/fiatjaf/openchain
 
+## libsecp256k1 dependencies
+
+When using `scoin` with Scala Native or Scala JVM it is necessary to have `libsecp256k1` available as a shared library. You can get it from your OS package manager where it is usually called either `secp256k1` or `libsecp256k1`, or install it [from the source](https://github.com/bitcoin-core/secp256k1) which isn't hard at all.
+
 ## JavaScript dependencies
 
-When using `scoin` from Scala.js we require two dependencies from NPM:
-
-- "@noble/secp256k1" -> "1.6.3",
-- "hash.js" -> "1.1.7"
-- "chacha" -> "2.1.0"
-
-Because scalajs-bundler doesn't work, these must be available as **globals** (with the following names), so you must do something like
-
-```
-window.Secp256k1 = require('@noble/secp256k1')
-window.Secp256k1Utils = require('@noble/secp256k1').utils
-window.Curve = require('@noble/secp256k1').CURVE
-window.Point = require('@noble/secp256k1').Point
-window.HashJS = require('hash.js')
-window.chacha = require('chacha')
-```
-
-And use a JavaScript bundler to bundle these modules and include that somehow before including your ScalaJS `fastLinkJS` output file.
-
-Suggestions on how to do this better are accepted.
+When using `scoin` from Scala.js we require some dependencies from [npm](https://npmjs.com/). If you are using [sbt-npm-dependencies](https://github.com/davenverse/sbt-npm-dependencies) they are available under `Compile / npmTransitiveDependencies` and [sbt-esbuild](https://github.com/fiatjaf/sbt-esbuild) is recommended if you need to bundle everything for the browser.

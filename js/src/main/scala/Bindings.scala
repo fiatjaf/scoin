@@ -1,12 +1,12 @@
 package scoin
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSGlobal
+import scala.scalajs.js.annotation.JSImport
 import scala.scalajs.js.typedarray.Uint8Array
 import scodec.bits.ByteVector
 
 @js.native
-@JSGlobal
+@JSImport("@noble-secp256k1", JSImport.Namespace)
 object Secp256k1 extends js.Object {
   def getPublicKey(
       privateKey: Uint8Array,
@@ -32,7 +32,7 @@ object Secp256k1 extends js.Object {
 }
 
 @js.native
-@JSGlobal
+@JSImport("@noble-secp256k1", "CURVE")
 object Curve extends js.Object {
   def Gx: js.BigInt = js.native
   def Gy: js.BigInt = js.native
@@ -40,13 +40,13 @@ object Curve extends js.Object {
 }
 
 @js.native
-@JSGlobal
+@JSImport("@noble-secp256k1", "Point")
 object Point extends js.Object {
   def fromHex(bytes: Uint8Array): Point = js.native
 }
 
 @js.native
-@JSGlobal
+@JSImport("@noble-secp256k1", "Point")
 class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
   def negate(): Point = js.native
   def add(point: Point): Point = js.native
@@ -57,7 +57,7 @@ class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
 }
 
 @js.native
-@JSGlobal
+@JSImport("@noble-secp256k1", "utils")
 object Secp256k1Utils extends js.Object {
   def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
   def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
@@ -90,7 +90,7 @@ object monkeyPatch {
 }
 
 @js.native
-@JSGlobal
+@JSImport("hash.js", JSImport.Default)
 object HashJS extends js.Object {
   def sha1(): Hash = js.native
   def sha256(): Hash = js.native
@@ -106,7 +106,7 @@ trait Hash extends js.Object {
 }
 
 @js.native
-@JSGlobal
+@JSImport("chacha", JSImport.Default)
 object ChaCha extends js.Object {
   def chacha(key: NodeBuffer, nonce: NodeBuffer): NodeCipherBase = js.native
   def createCipher(key: NodeBuffer, nonce: NodeBuffer): NodeCipher = js.native
@@ -133,7 +133,7 @@ trait NodeDecipher extends NodeCipherBase {
 }
 
 @js.native
-@JSGlobal
+@JSImport("buffer", JSImport.Default)
 object Buffer extends js.Object {
   def from(bytes: Uint8Array): NodeBuffer = js.native
 }

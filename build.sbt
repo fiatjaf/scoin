@@ -4,7 +4,7 @@ ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
 ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
-ThisBuild / version := "0.2.1-SNAPSHOT"
+ThisBuild / tlBaseVersion := "0.2"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 lazy val root = project.in(file("."))
@@ -27,9 +27,15 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "org.bouncycastle" % "bcprov-jdk15to18" % "1.68"
     )
   )
+  .jsConfigure { _.enablePlugins(NpmDependenciesPlugin) }
   .jsSettings(
     scalaVersion := "3.1.3",
-    libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13)
+    libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13),
+    Compile / npmDependencies ++= Seq(
+      "@noble/secp256k1" -> "1.6.3",
+      "hash.js" -> "1.1.7",
+      "chacha" -> "2.1.0"
+    )
   )
   .nativeSettings(
     scalaVersion := "3.1.3",
