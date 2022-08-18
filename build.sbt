@@ -7,8 +7,7 @@ ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 ThisBuild / tlBaseVersion := "0.2"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
-lazy val root = project.in(file("."))
-  .aggregate(scoin.js, scoin.jvm, scoin.native)
+lazy val root = tlCrossRootProject.aggregate(scoin)
 
 lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .in(file("."))
