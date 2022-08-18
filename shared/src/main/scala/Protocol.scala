@@ -210,13 +210,13 @@ object Protocol {
     writeBytes(input, out)
   }
 
-  implicit val txInSer: BtcSerializer[TxIn] = TxIn
-  implicit val txOutSer: BtcSerializer[TxOut] = TxOut
-  implicit val scriptWitnessSer: BtcSerializer[ScriptWitness] = ScriptWitness
-  implicit val txSer: BtcSerializer[Transaction] = Transaction
-  implicit val networkAddressWithTimestampSer
+  implicit def txInSer: BtcSerializer[TxIn] = TxIn
+  implicit def txOutSer: BtcSerializer[TxOut] = TxOut
+  implicit def scriptWitnessSer: BtcSerializer[ScriptWitness] = ScriptWitness
+  implicit def txSer: BtcSerializer[Transaction] = Transaction
+  implicit def networkAddressWithTimestampSer
       : BtcSerializer[NetworkAddressWithTimestamp] = NetworkAddressWithTimestamp
-  implicit val inventoryVectorOutSer: BtcSerializer[InventoryVector] =
+  implicit def inventoryVectorOutSer: BtcSerializer[InventoryVector] =
     InventoryVector
 
   def readCollection[T](
