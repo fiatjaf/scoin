@@ -73,8 +73,11 @@ object Crypto extends CryptoPlatform {
     *   serialized public key, in compressed format (33 bytes)
     */
   case class PublicKey(value: ByteVector) extends PublicKeyPlatform(value) {
-    require(value.length == 33,s"pubkey is ${value.length} bytes but should be 33 bytes")
-    require(isPubKeyValidLax(value),"pubkey is not valid")
+    require(
+      value.length == 33,
+      s"pubkey is ${value.length} bytes but should be 33 bytes"
+    )
+    require(isPubKeyValidLax(value), "pubkey is not valid")
 
     def hash160: ByteVector = Crypto.hash160(value)
 

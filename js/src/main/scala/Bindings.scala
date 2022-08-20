@@ -10,7 +10,7 @@ import scodec.bits.ByteVector
 object Secp256k1 extends js.Object {
   def getPublicKey(
       privateKey: Uint8Array,
-      compressed: Boolean = true
+      compressed: Boolean
   ): Uint8Array = js.native
   def signSync(
       msgHash: Uint8Array,
@@ -29,42 +29,38 @@ object Secp256k1 extends js.Object {
       rec: Integer,
       compressed: Boolean
   ): Uint8Array = js.native
-}
 
-@js.native
-@JSImport("@noble/secp256k1", "CURVE")
-object Curve extends js.Object {
-  def Gx: js.BigInt = js.native
-  def Gy: js.BigInt = js.native
-  def n: js.BigInt = js.native
-}
+  @js.native
+  object utils extends js.Object {
+    def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
+    def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
+      js.native
+    def pointAddScalar(point: Uint8Array, tweak: Uint8Array): Uint8Array =
+      js.native
+    def mod(number: js.BigInt): js.BigInt = js.native
+  }
 
-@js.native
-@JSImport("@noble/secp256k1", "Point")
-object Point extends js.Object {
-  def fromHex(bytes: Uint8Array): Point = js.native
-}
+  @js.native
+  object CURVE extends js.Object {
+    def Gx: js.BigInt = js.native
+    def Gy: js.BigInt = js.native
+    def n: js.BigInt = js.native
+  }
 
-@js.native
-@JSImport("@noble/secp256k1", "Point")
-class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
-  def negate(): Point = js.native
-  def add(point: Point): Point = js.native
-  def subtract(point: Point): Point = js.native
-  def multiply(scalar: Uint8Array): Point = js.native
-  def toRawBytes(compressed: Boolean): Uint8Array = js.native
-  def assertValidity(): Unit = js.native
-}
+  @js.native
+  object Point extends js.Object {
+    def fromHex(bytes: Uint8Array): Point = js.native
+  }
 
-@js.native
-@JSImport("@noble/secp256k1", "utils")
-object Secp256k1Utils extends js.Object {
-  def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
-  def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
-    js.native
-  def pointAddScalar(point: Uint8Array, tweak: Uint8Array): Uint8Array =
-    js.native
-  def mod(number: js.BigInt): js.BigInt = js.native
+  @js.native
+  class Point(x: js.BigInt, y: js.BigInt) extends js.Object {
+    def negate(): Point = js.native
+    def add(point: Point): Point = js.native
+    def subtract(point: Point): Point = js.native
+    def multiply(scalar: Uint8Array): Point = js.native
+    def toRawBytes(compressed: Boolean): Uint8Array = js.native
+    def assertValidity(): Unit = js.native
+  }
 }
 
 object monkeyPatch {
@@ -85,18 +81,47 @@ object monkeyPatch {
       )
       .toUint8Array
 
-  Secp256k1Utils.asInstanceOf[js.Dynamic].sha256Sync = sha256Sync
-  Secp256k1Utils.asInstanceOf[js.Dynamic].hmacSha256Sync = hmacSha256Sync
+  def init(): Unit = {
+    println("initializing this shit")
+
+    Secp256k1.utils.asInstanceOf[js.Dynamic].sha256Sync = sha256Sync
+    Secp256k1.utils.asInstanceOf[js.Dynamic].hmacSha256Sync = hmacSha256Sync
+  }
 }
 
 @js.native
 @JSImport("hash.js", JSImport.Default)
 object HashJS extends js.Object {
-  def sha1(): Hash = js.native
-  def sha256(): Hash = js.native
-  def sha512(): Hash = js.native
-  def ripemd160(): Hash = js.native
-  def hmac(hash: () => Hash, key: String, enc: String): Hash = js.native
+  @js.native
+  object sha1 extends js.Object with HashProvider {
+    def apply(): Hash = js.native
+  }
+
+  @js.native
+  object sha256 extends js.Object with HashProvider {
+    def apply(): Hash = js.native
+  }
+
+  @js.native
+  object sha512 extends js.Object with HashProvider {
+    def apply(): Hash = js.native
+  }
+
+  @js.native
+  object ripemd160 extends js.Object with HashProvider {
+    def apply(): Hash = js.native
+  }
+
+  def hmac(hash: HashProvider, key: String, enc: String): Hash = js.native
+}
+
+@js.native
+trait HashProvider extends js.Object {
+  def apply(): Hash
+  val blockSize: Int = js.native
+  val outSize: Int = js.native
+  val hmacStrength: Int = js.native
+  val padLength: Int = js.native
 }
 
 @js.native

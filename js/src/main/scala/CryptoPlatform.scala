@@ -11,6 +11,9 @@ import scodec.bits.ByteVector
 
 private[scoin] trait CryptoPlatform {
   import Crypto._
+  import Secp256k1._
+
+  monkeyPatch.init()
 
   private val secureRandom = new SecureRandom
   def randomBytes(length: Int): ByteVector = {
@@ -20,9 +23,9 @@ private[scoin] trait CryptoPlatform {
   }
 
   def G = PublicKey(
-    ByteVector.view(new Point(Curve.Gx, Curve.Gy).toRawBytes(true))
+    ByteVector.view(new Point(CURVE.Gx, CURVE.Gy).toRawBytes(true))
   )
-  def N = bigint2biginteger(Curve.n)
+  def N = bigint2biginteger(CURVE.n)
 
   private implicit def bigint2biginteger(x: js.BigInt): BigInteger =
     new BigInteger(x.toString(10), 10)
@@ -37,7 +40,7 @@ private[scoin] trait CryptoPlatform {
     def add(that: PrivateKey): PrivateKey = PrivateKey(
       ByteVector32(
         ByteVector.view(
-          Secp256k1Utils.privateAdd(
+          utils.privateAdd(
             value.bytes.toUint8Array,
             that.value.bytes.toUint8Array
           )
@@ -48,9 +51,9 @@ private[scoin] trait CryptoPlatform {
     def subtract(that: PrivateKey): PrivateKey = PrivateKey(
       ByteVector32(
         ByteVector.view(
-          Secp256k1Utils.privateAdd(
+          utils.privateAdd(
             value.bytes.toUint8Array,
-            Secp256k1Utils.privateNegate(that.value.bytes.toUint8Array)
+            utils.privateNegate(that.value.bytes.toUint8Array)
           )
         )
       )
@@ -60,7 +63,7 @@ private[scoin] trait CryptoPlatform {
       PrivateKey(
         ByteVector32(
           ByteVector.fromValidHex(
-            Secp256k1Utils
+            utils
               .mod(
                 js.BigInt(
                   bytevector2biginteger(value.bytes)
@@ -74,7 +77,7 @@ private[scoin] trait CryptoPlatform {
       )
 
     def publicKey: PublicKey = PublicKey(
-      ByteVector.view(Secp256k1.getPublicKey(value.bytes.toUint8Array))
+      ByteVector.view(Secp256k1.getPublicKey(value.bytes.toUint8Array, true))
     )
   }
 
@@ -90,7 +93,7 @@ private[scoin] trait CryptoPlatform {
     def add(that: PrivateKey): PublicKey =
       PublicKey(
         ByteVector.view(
-          Secp256k1Utils.pointAddScalar(
+          utils.pointAddScalar(
             value.toUint8Array,
             that.value.toUint8Array
           )
