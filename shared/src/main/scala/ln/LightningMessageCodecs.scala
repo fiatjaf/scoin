@@ -37,20 +37,24 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
     (("features" | combinedFeaturesCodec) :: ("tlvStream" | InitTlvCodecs.initTlvCodec))
       .as[Init]
 
-  val errorCodec: Codec[Error] = (("channelId" | bytes32) ::
-    ("data" | varsizebinarydata) ::
-    ("tlvStream" | ErrorTlv.errorTlvCodec)).as[Error]
+  val errorCodec: Codec[Error] =
+    (("channelId" | bytes32) ::
+      ("data" | varsizebinarydata) ::
+      ("tlvStream" | ErrorTlv.errorTlvCodec)).as[Error]
 
-  val warningCodec: Codec[Warning] = (("channelId" | bytes32) ::
-    ("data" | varsizebinarydata) ::
-    ("tlvStream" | WarningTlv.warningTlvCodec)).as[Warning]
+  val warningCodec: Codec[Warning] =
+    (("channelId" | bytes32) ::
+      ("data" | varsizebinarydata) ::
+      ("tlvStream" | WarningTlv.warningTlvCodec)).as[Warning]
 
-  val pingCodec: Codec[Ping] = (("pongLength" | uint16) ::
-    ("data" | varsizebinarydata) ::
-    ("tlvStream" | PingTlv.pingTlvCodec)).as[Ping]
+  val pingCodec: Codec[Ping] =
+    (("pongLength" | uint16) ::
+      ("data" | varsizebinarydata) ::
+      ("tlvStream" | PingTlv.pingTlvCodec)).as[Ping]
 
-  val pongCodec: Codec[Pong] = (("data" | varsizebinarydata) ::
-    ("tlvStream" | PongTlv.pongTlvCodec)).as[Pong]
+  val pongCodec: Codec[Pong] =
+    (("data" | varsizebinarydata) ::
+      ("tlvStream" | PongTlv.pongTlvCodec)).as[Pong]
 
   val channelReestablishCodec: Codec[ChannelReestablish] =
     (("channelId" | bytes32) ::
@@ -61,25 +65,27 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
       ("tlvStream" | ChannelReestablishTlv.channelReestablishTlvCodec))
       .as[ChannelReestablish]
 
-  val openChannelCodec: Codec[OpenChannel] = (("chainHash" | bytes32) ::
-    ("temporaryChannelId" | bytes32) ::
-    ("fundingSatoshis" | satoshi) ::
-    ("pushMsat" | millisatoshi) ::
-    ("dustLimitSatoshis" | satoshi) ::
-    ("maxHtlcValueInFlightMsat" | uint64) ::
-    ("channelReserveSatoshis" | satoshi) ::
-    ("htlcMinimumMsat" | millisatoshi) ::
-    ("feeratePerKw" | feeratePerKw) ::
-    ("toSelfDelay" | cltvExpiryDelta) ::
-    ("maxAcceptedHtlcs" | uint16) ::
-    ("fundingPubkey" | publicKey) ::
-    ("revocationBasepoint" | publicKey) ::
-    ("paymentBasepoint" | publicKey) ::
-    ("delayedPaymentBasepoint" | publicKey) ::
-    ("htlcBasepoint" | publicKey) ::
-    ("firstPerCommitmentPoint" | publicKey) ::
-    ("channelFlags" | (ignore(7) dropLeft bool).as[OpenChannel.ChannelFlags]) ::
-    ("tlvStream" | OpenChannelTlv.openTlvCodec)).as[OpenChannel]
+  val openChannelCodec: Codec[OpenChannel] =
+    (("chainHash" | bytes32) ::
+      ("temporaryChannelId" | bytes32) ::
+      ("fundingSatoshis" | satoshi) ::
+      ("pushMsat" | millisatoshi) ::
+      ("dustLimitSatoshis" | satoshi) ::
+      ("maxHtlcValueInFlightMsat" | uint64) ::
+      ("channelReserveSatoshis" | satoshi) ::
+      ("htlcMinimumMsat" | millisatoshi) ::
+      ("feeratePerKw" | feeratePerKw) ::
+      ("toSelfDelay" | cltvExpiryDelta) ::
+      ("maxAcceptedHtlcs" | uint16) ::
+      ("fundingPubkey" | publicKey) ::
+      ("revocationBasepoint" | publicKey) ::
+      ("paymentBasepoint" | publicKey) ::
+      ("delayedPaymentBasepoint" | publicKey) ::
+      ("htlcBasepoint" | publicKey) ::
+      ("firstPerCommitmentPoint" | publicKey) ::
+      ("channelFlags" | (ignore(7) dropLeft bool)
+        .as[OpenChannel.ChannelFlags]) ::
+      ("tlvStream" | OpenChannelTlv.openTlvCodec)).as[OpenChannel]
 
   val acceptChannelCodec: Codec[AcceptChannel] =
     (("temporaryChannelId" | bytes32) ::
@@ -106,30 +112,35 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
       ("tlvStream" | FundingCreatedTlv.fundingCreatedTlvCodec))
       .as[FundingCreated]
 
-  val fundingSignedCodec: Codec[FundingSigned] = (("channelId" | bytes32) ::
-    ("signature" | bytes64) ::
-    ("tlvStream" | FundingSignedTlv.fundingSignedTlvCodec)).as[FundingSigned]
+  val fundingSignedCodec: Codec[FundingSigned] =
+    (("channelId" | bytes32) ::
+      ("signature" | bytes64) ::
+      ("tlvStream" | FundingSignedTlv.fundingSignedTlvCodec)).as[FundingSigned]
 
-  val fundingLockedCodec: Codec[FundingLocked] = (("channelId" | bytes32) ::
-    ("nextPerCommitmentPoint" | publicKey) ::
-    ("tlvStream" | FundingLockedTlv.fundingLockedTlvCodec)).as[FundingLocked]
+  val fundingLockedCodec: Codec[FundingLocked] =
+    (("channelId" | bytes32) ::
+      ("nextPerCommitmentPoint" | publicKey) ::
+      ("tlvStream" | FundingLockedTlv.fundingLockedTlvCodec)).as[FundingLocked]
 
-  val shutdownCodec: Codec[Shutdown] = (("channelId" | bytes32) ::
-    ("scriptPubKey" | varsizebinarydata) ::
-    ("tlvStream" | ShutdownTlv.shutdownTlvCodec)).as[Shutdown]
+  val shutdownCodec: Codec[Shutdown] =
+    (("channelId" | bytes32) ::
+      ("scriptPubKey" | varsizebinarydata) ::
+      ("tlvStream" | ShutdownTlv.shutdownTlvCodec)).as[Shutdown]
 
-  val closingSignedCodec: Codec[ClosingSigned] = (("channelId" | bytes32) ::
-    ("feeSatoshis" | satoshi) ::
-    ("signature" | bytes64) ::
-    ("tlvStream" | ClosingSignedTlv.closingSignedTlvCodec)).as[ClosingSigned]
+  val closingSignedCodec: Codec[ClosingSigned] =
+    (("channelId" | bytes32) ::
+      ("feeSatoshis" | satoshi) ::
+      ("signature" | bytes64) ::
+      ("tlvStream" | ClosingSignedTlv.closingSignedTlvCodec)).as[ClosingSigned]
 
-  val updateAddHtlcCodec: Codec[UpdateAddHtlc] = (("channelId" | bytes32) ::
-    ("id" | uint64overflow) ::
-    ("amountMsat" | millisatoshi) ::
-    ("paymentHash" | bytes32) ::
-    ("expiry" | cltvExpiry) ::
-    ("onionRoutingPacket" | PaymentOnionCodecs.paymentOnionPacketCodec) ::
-    ("tlvStream" | UpdateAddHtlcTlv.addHtlcTlvCodec)).as[UpdateAddHtlc]
+  val updateAddHtlcCodec: Codec[UpdateAddHtlc] =
+    (("channelId" | bytes32) ::
+      ("id" | uint64overflow) ::
+      ("amountMsat" | millisatoshi) ::
+      ("paymentHash" | bytes32) ::
+      ("expiry" | cltvExpiry) ::
+      ("onionRoutingPacket" | PaymentOnionCodecs.paymentOnionPacketCodec) ::
+      ("tlvStream" | UpdateAddHtlcTlv.addHtlcTlvCodec)).as[UpdateAddHtlc]
 
   val updateFulfillHtlcCodec: Codec[UpdateFulfillHtlc] =
     (("channelId" | bytes32) ::
@@ -138,32 +149,37 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
       ("tlvStream" | UpdateFulfillHtlcTlv.updateFulfillHtlcTlvCodec))
       .as[UpdateFulfillHtlc]
 
-  val updateFailHtlcCodec: Codec[UpdateFailHtlc] = (("channelId" | bytes32) ::
-    ("id" | uint64overflow) ::
-    ("reason" | varsizebinarydata) ::
-    ("tlvStream" | UpdateFailHtlcTlv.updateFailHtlcTlvCodec)).as[UpdateFailHtlc]
+  val updateFailHtlcCodec: Codec[UpdateFailHtlc] =
+    (("channelId" | bytes32) ::
+      ("id" | uint64overflow) ::
+      ("reason" | varsizebinarydata) ::
+      ("tlvStream" | UpdateFailHtlcTlv.updateFailHtlcTlvCodec))
+      .as[UpdateFailHtlc]
 
-  val updateFailMalformedHtlcCodec
-      : Codec[UpdateFailMalformedHtlc] = (("channelId" | bytes32) ::
-    ("id" | uint64overflow) ::
-    ("onionHash" | bytes32) ::
-    ("failureCode" | uint16) ::
-    ("tlvStream" | UpdateFailMalformedHtlcTlv.updateFailMalformedHtlcTlvCodec))
-    .as[UpdateFailMalformedHtlc]
+  val updateFailMalformedHtlcCodec: Codec[UpdateFailMalformedHtlc] =
+    (("channelId" | bytes32) ::
+      ("id" | uint64overflow) ::
+      ("onionHash" | bytes32) ::
+      ("failureCode" | uint16) ::
+      ("tlvStream" | UpdateFailMalformedHtlcTlv.updateFailMalformedHtlcTlvCodec))
+      .as[UpdateFailMalformedHtlc]
 
-  val commitSigCodec: Codec[CommitSig] = (("channelId" | bytes32) ::
-    ("signature" | bytes64) ::
-    ("htlcSignatures" | listofsignatures) ::
-    ("tlvStream" | CommitSigTlv.commitSigTlvCodec)).as[CommitSig]
+  val commitSigCodec: Codec[CommitSig] =
+    (("channelId" | bytes32) ::
+      ("signature" | bytes64) ::
+      ("htlcSignatures" | listofsignatures) ::
+      ("tlvStream" | CommitSigTlv.commitSigTlvCodec)).as[CommitSig]
 
-  val revokeAndAckCodec: Codec[RevokeAndAck] = (("channelId" | bytes32) ::
-    ("perCommitmentSecret" | privateKey) ::
-    ("nextPerCommitmentPoint" | publicKey) ::
-    ("tlvStream" | RevokeAndAckTlv.revokeAndAckTlvCodec)).as[RevokeAndAck]
+  val revokeAndAckCodec: Codec[RevokeAndAck] =
+    (("channelId" | bytes32) ::
+      ("perCommitmentSecret" | privateKey) ::
+      ("nextPerCommitmentPoint" | publicKey) ::
+      ("tlvStream" | RevokeAndAckTlv.revokeAndAckTlvCodec)).as[RevokeAndAck]
 
-  val updateFeeCodec: Codec[UpdateFee] = (("channelId" | bytes32) ::
-    ("feeratePerKw" | feeratePerKw) ::
-    ("tlvStream" | UpdateFeeTlv.updateFeeTlvCodec)).as[UpdateFee]
+  val updateFeeCodec: Codec[UpdateFee] =
+    (("channelId" | bytes32) ::
+      ("feeratePerKw" | feeratePerKw) ::
+      ("tlvStream" | UpdateFeeTlv.updateFeeTlvCodec)).as[UpdateFee]
 
   val announcementSignaturesCodec: Codec[AnnouncementSignatures] =
     (("channelId" | bytes32) ::
@@ -220,8 +236,9 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
   // val channelUpdateChecksumCodec defined on LightningMessageCodecsVersionCompat
   // val channelUpdateWitnessCodec defined on LightningMessageCodecsVersionCompat
 
-  val channelUpdateCodec: Codec[ChannelUpdate] = (("signature" | bytes64) ::
-    channelUpdateWitnessCodec).as[ChannelUpdate]
+  val channelUpdateCodec: Codec[ChannelUpdate] =
+    (("signature" | bytes64) ::
+      channelUpdateWitnessCodec).as[ChannelUpdate]
 
   val encodedShortChannelIdsCodec: Codec[EncodedShortChannelIds] =
     discriminated[EncodedShortChannelIds]
@@ -244,11 +261,11 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
       )) ::
       ("tlvStream" | QueryShortChannelIdsTlv.codec)).as[QueryShortChannelIds]
 
-  val replyShortChanelIdsEndCodec
-      : Codec[ReplyShortChannelIdsEnd] = (("chainHash" | bytes32) ::
-    ("complete" | byte) ::
-    ("tlvStream" | ReplyShortChannelIdsEndTlv.replyShortChannelIdsEndTlvCodec))
-    .as[ReplyShortChannelIdsEnd]
+  val replyShortChanelIdsEndCodec: Codec[ReplyShortChannelIdsEnd] =
+    (("chainHash" | bytes32) ::
+      ("complete" | byte) ::
+      ("tlvStream" | ReplyShortChannelIdsEndTlv.replyShortChannelIdsEndTlvCodec))
+      .as[ReplyShortChannelIdsEnd]
 
   val queryChannelRangeCodec: Codec[QueryChannelRange] =
     (("chainHash" | bytes32) ::
