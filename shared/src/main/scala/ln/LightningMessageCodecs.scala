@@ -8,7 +8,7 @@ import scoin._
 import scoin.ln._
 import scoin.ln.CommonCodecs._
 
-object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
+object LightningMessageCodecs {
   val featuresCodec: Codec[Features[Feature]] =
     varsizebinarydata.xmap[Features[Feature]](
       { bytes => Features(bytes) },
@@ -233,8 +233,31 @@ object LightningMessageCodecs extends LightningMessageCodecsVersionCompat {
     ("channelFlags" | (ignore(6) :: reverseBool :: reverseBool))
       .as[ChannelUpdate.ChannelFlags]
 
-  // val channelUpdateChecksumCodec defined on LightningMessageCodecsVersionCompat
-  // val channelUpdateWitnessCodec defined on LightningMessageCodecsVersionCompat
+  val channelUpdateChecksumCodec =
+    ("chainHash" | bytes32) ::
+      ("shortChannelId" | shortchannelid) ::
+      ("messageFlags" | constant(1)).dropLeft(
+        channelFlagsCodec ::
+          ("cltvExpiryDelta" | cltvExpiryDelta) ::
+          ("htlcMinimumMsat" | millisatoshi) ::
+          ("feeBaseMsat" | millisatoshi32) ::
+          ("feeProportionalMillionths" | uint32) ::
+          ("htlcMaximumMsat" | millisatoshi)
+      )
+
+  val channelUpdateWitnessCodec =
+    ("chainHash" | bytes32) ::
+      ("shortChannelId" | shortchannelid) ::
+      ("timestamp" | timestampSecond) ::
+      ("messageFlags" | constant(1)).dropLeft(
+        channelFlagsCodec ::
+          ("cltvExpiryDelta" | cltvExpiryDelta) ::
+          ("htlcMinimumMsat" | millisatoshi) ::
+          ("feeBaseMsat" | millisatoshi32) ::
+          ("feeProportionalMillionths" | uint32) ::
+          ("htlcMaximumMsat" | millisatoshi) ::
+          ("tlvStream" | ChannelUpdateTlv.channelUpdateTlvCodec)
+      )
 
   val channelUpdateCodec: Codec[ChannelUpdate] =
     (("signature" | bytes64) ::

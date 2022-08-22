@@ -4,6 +4,7 @@ import java.net.{Inet4Address, Inet6Address, InetAddress}
 import java.nio.charset.StandardCharsets
 import scala.util.Try
 import scodec.bits.ByteVector
+
 import scoin._
 import scoin.Crypto.{PrivateKey, PublicKey}
 
@@ -357,14 +358,14 @@ case class ChannelUpdate(
     htlcMinimumMsat: MilliSatoshi,
     feeBaseMsat: MilliSatoshi,
     feeProportionalMillionths: Long,
-    htlcMaximumMsat: Option[MilliSatoshi],
+    htlcMaximumMsat: MilliSatoshi,
     tlvStream: TlvStream[ChannelUpdateTlv] = TlvStream.empty
 ) extends RoutingMessage
     with AnnouncementMessage
     with HasTimestamp
     with HasChainHash {
 
-  def messageFlags: Byte = if (htlcMaximumMsat.isDefined) 1 else 0
+  def messageFlags: Byte = 1
 
   def toStringShort: String =
     s"cltvExpiryDelta=$cltvExpiryDelta,feeBase=$feeBaseMsat,feeProportionalMillionths=$feeProportionalMillionths"
