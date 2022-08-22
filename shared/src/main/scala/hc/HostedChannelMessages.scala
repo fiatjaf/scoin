@@ -11,7 +11,6 @@ import scoin.ln._
 import scoin.ln.TlvCodecs._
 import scoin.ln.CommonCodecs._
 import scoin.Crypto.{PublicKey, PrivateKey}
-import scoin.hc.HostedChannelTags._
 import scoin.hc.HostedChannelCodecs._
 
 sealed trait HostedChannelMessage extends LightningMessage
