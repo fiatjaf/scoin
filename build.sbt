@@ -40,7 +40,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     scalaVersion := "3.1.3",
     libraryDependencies ++= Seq(
       "com.fiatjaf" %%% "sn-sha256" % "0.4.1",
-      "com.fiatjaf" %%% "sn-secp256k1" % "0.3.0",
+      "com.fiatjaf" %%% "sn-secp256k1" % "0.3.1",
       "com.fiatjaf" %%% "sn-chacha20poly1305" % "0.2.1"
     )
   )

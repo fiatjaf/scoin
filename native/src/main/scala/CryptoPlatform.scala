@@ -196,10 +196,10 @@ private[scoin] trait CryptoPlatform {
     *   version since here we check that the public key is a valid point on the
     *   secp256k1 curve
     */
-  def isPubKeyValidStrict(key: ByteVector): Boolean = isPubKeyValidLax(key) &&
-    secp256k1.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
+  def isPubKeyValidStrict(key: ByteVector): Boolean =
+    isPubKeyValidLax(key) &&
+      secp256k1.loadPublicKey(key.toArray.map(_.toUByte)).toOption.isDefined
 
-  // copied from noble-secp256k1
   def compact2der(signature: ByteVector64): ByteVector = {
     val (r, s) = decodeSignatureCompact(signature)
     signatureToDER(r, s)
