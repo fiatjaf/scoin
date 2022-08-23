@@ -17,7 +17,10 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "org.scodec" %%% "scodec-bits" % "1.1.34",
       "org.scodec" %%% "scodec-core" % (if (scalaVersion.value.startsWith("2.")) "1.11.9" else "2.2.0"),
-    )
+
+      "com.lihaoyi" %%% "utest" % "0.8.0" % Test
+    ),
+    testFrameworks += new TestFramework("utest.runner.Framework")
   )
   .jvmSettings(
     crossScalaVersions := List("2.13.8", "3.1.3"),
@@ -34,7 +37,8 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "@noble/secp256k1" -> "1.6.3",
       "hash.js" -> "1.1.7",
       "chacha" -> "2.1.0"
-    )
+    ),
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
   )
   .nativeSettings(
     scalaVersion := "3.1.3",
