@@ -143,7 +143,6 @@ object CryptoTest extends TestSuite {
             PrivateKey(k)
           )
         )
-        println(s"${sig.toHex} ==\n${s.toHex}")
         assert(sig == s)
       }
     }

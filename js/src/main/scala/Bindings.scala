@@ -64,28 +64,30 @@ object Secp256k1 extends js.Object {
 }
 
 object monkeyPatch {
-  def sha256Sync(msg: Uint8Array): Uint8Array =
-    ByteVector
-      .fromValidHex(
-        HashJS.sha256().update(ByteVector.view(msg).toHex, "hex").digest("hex")
-      )
-      .toUint8Array
+  trait HmacSha256SyncFunctionType extends js.Function {
+    def apply(key: Uint8Array, msgs: Uint8Array*): Uint8Array
+  }
 
-  def hmacSha256Sync(key: Uint8Array, msg: Uint8Array): Uint8Array =
+  def hmacSha256Sync(key: Uint8Array, msgs: Seq[Uint8Array]): Uint8Array = {
     ByteVector
       .fromValidHex(
         HashJS
           .hmac(HashJS.sha256, ByteVector.view(key).toHex, "hex")
-          .update(ByteVector.view(msg).toHex, "hex")
+          .update(
+            ByteVector
+              .concat(msgs.map(ByteVector.view(_)))
+              .toHex,
+            "hex"
+          )
           .digest("hex")
       )
       .toUint8Array
+  }
 
   def init(): Unit = {
-    println("initializing this shit")
-
-    Secp256k1.utils.asInstanceOf[js.Dynamic].sha256Sync = sha256Sync
-    Secp256k1.utils.asInstanceOf[js.Dynamic].hmacSha256Sync = hmacSha256Sync
+    Secp256k1.utils.asInstanceOf[js.Dynamic].hmacSha256Sync = ({ (key, msgs) =>
+      hmacSha256Sync(key, msgs)
+    }: HmacSha256SyncFunctionType)
   }
 }
 
