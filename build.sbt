@@ -4,7 +4,7 @@ ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
 ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
-ThisBuild / version             := "0.3.0-SNAPSHOT"
+ThisBuild / version             := "0.3.0"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 lazy val root = tlCrossRootProject.aggregate(scoin)
