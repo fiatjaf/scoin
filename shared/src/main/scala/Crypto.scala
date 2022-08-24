@@ -389,16 +389,16 @@ object Crypto extends CryptoPlatform {
       if (ByteVector.fromValidHex(s.substring(0, 1)).head.toInt >= 8) "00" + s
       else s
 
-    def numberToHexUnpadded(num: BigInt): String = {
+    def toPaddedHex(num: BigInt): String = {
       val hex = num.toString(16)
-      if (hex.length == 1) "0" + hex else hex
+      if ((hex.length & 1) == 1) "0" + hex else hex
     }
 
-    val sHex = sliceDER(numberToHexUnpadded(s));
-    val rHex = sliceDER(numberToHexUnpadded(r));
-    val rLen = numberToHexUnpadded(rHex.length / 2);
-    val sLen = numberToHexUnpadded(sHex.length / 2);
-    val length = numberToHexUnpadded(rHex.length / 2 + sHex.length / 2 + 4);
+    val sHex = sliceDER(toPaddedHex(s));
+    val rHex = sliceDER(toPaddedHex(r));
+    val rLen = toPaddedHex(rHex.length / 2);
+    val sLen = toPaddedHex(sHex.length / 2);
+    val length = toPaddedHex(rHex.length / 2 + sHex.length / 2 + 4);
     val hex = s"30${length}02${rLen}${rHex}02${sLen}${sHex}"
 
     ByteVector.fromValidHex(hex)
