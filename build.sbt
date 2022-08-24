@@ -49,5 +49,18 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     )
   )
 
-// maven magic, see https://github.com/makingthematrix/scala-suffix/tree/56270a6b4abbb1cd1008febbd2de6eea29a23b52#but-wait-thats-not-all
+ThisBuild / githubWorkflowBuildPreamble ++= Seq(
+  WorkflowStep.Run(
+    List("sudo apt install -y libsecp256k1-dev"),
+    name = Some("Install libsecp256k1"),
+    cond = Some("matrix.project == 'rootNative'"),
+  ),
+  WorkflowStep.Run(
+    List("npm install @noble/secp256k1 hash.js chacha"),
+    name = Some("Install Node Modules"),
+    cond = Some("matrix.project == 'rootJS'"),
+  ),
+)
+
+// maven magic, see https://github.com/makingthematrix/scala-suffix/tree/56270a#but-wait-thats-not-all
 Compile / packageBin / packageOptions += Package.ManifestAttributes("Automatic-Module-Name" -> "scoin")
