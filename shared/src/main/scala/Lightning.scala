@@ -7,6 +7,13 @@ import scodec.bits.{ByteVector, ByteOrdering}
 
 case class CltvExpiryDelta(private val underlying: Int)
     extends Ordered[CltvExpiryDelta] {
+  def toCltvExpiry(height: Long): CltvExpiry = CltvExpiry(height + underlying)
+  def toCltvExpiry(height: BlockHeight): CltvExpiry = toCltvExpiry(
+    height.underlying
+  )
+
+  def +(height: BlockHeight): CltvExpiry = toCltvExpiry(height)
+  def +(height: Long): CltvExpiry = toCltvExpiry(height)
   def +(other: Int): CltvExpiryDelta = CltvExpiryDelta(underlying + other)
   def +(other: CltvExpiryDelta): CltvExpiryDelta = CltvExpiryDelta(
     underlying + other.underlying

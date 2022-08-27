@@ -1,4 +1,4 @@
-package scoin
+package scoin.ln
 
 import scodec.bits.{BitVector, ByteVector}
 import scoin._
@@ -126,19 +126,6 @@ object OnionPaymentPayloadTlv {
   case class PaymentData(secret: ByteVector32, totalAmount: MilliSatoshi)
       extends OnionPaymentPayloadTlv
 
-  /** Route blinding lets the recipient provide some encrypted data for each
-    * intermediate node in the blinded part of the route. This data cannot be
-    * decrypted or modified by the sender and usually contains information to
-    * locate the next node without revealing it to the sender.
-    */
-  case class EncryptedRecipientData(data: ByteVector)
-      extends OnionPaymentPayloadTlv
-
-  /** Blinding ephemeral public key that should be used to derive shared secrets
-    * when using route blinding.
-    */
-  case class BlindingPoint(publicKey: PublicKey) extends OnionPaymentPayloadTlv
-
   /** Id of the next node. */
   case class OutgoingNodeId(nodeId: PublicKey) extends OnionPaymentPayloadTlv
 
@@ -169,38 +156,50 @@ object OnionPaymentPayloadTlv {
   /** Pre-image included by the sender of a payment in case of a donation */
   case class KeySend(paymentPreimage: ByteVector32)
       extends OnionPaymentPayloadTlv
+
+  /** Route blinding lets the recipient provide some encrypted data for each
+    * intermediate node in the blinded part of the route. This data cannot be
+    * decrypted or modified by the sender and usually contains information to
+    * locate the next node without revealing it to the sender.
+    */
+  case class EncryptedRecipientData(data: ByteVector)
+      extends OnionPaymentPayloadTlv
+
+  /** Blinding ephemeral public key for the introduction node of a blinded
+    * route.
+    */
+  case class BlindingPoint(publicKey: PublicKey) extends OnionPaymentPayloadTlv
 }
 
 object PaymentOnion {
+
   import OnionPaymentPayloadTlv._
 
   /*
    * We use the following architecture for payment onion payloads:
    *
-   *                                                              PerHopPayload
-   *                                           _______________________/\_______________
-   *                                          /                                        \
-   *                                 RelayPayload                                   FinalPayload
-   *                     _______________/\_________________                              \______
-   *                    /                                  \                                    \
-   *           ChannelRelayPayload                          \                                    \
-   *         ________/\______________                        \                                    \
-   *        /                        \                        \                                    \
-   * RelayLegacyPayload     ChannelRelayTlvPayload     NodeRelayPayload                      FinalTlvPayload
+   *                                                                                  PerHopPayload
+   *                                                                                        |
+   *                                                                                        |
+   *                                                             +--------------------------+------------------------------+
+   *                                                             |                                                         |
+   *                                                             |                                                         |
+   *                                                        RelayPayload                                              FinalPayload
+   *                                                             |                                                         |
+   *                                                             |                                                         |
+   *                                   +-------------------------+---------------------------+                    +--------+---------+
+   *                                   |                                                     |                    |                  |
+   *                                   |                                                     |                    |                  |
+   *                          ChannelRelayPayload                                            |                    |                  |
+   *                                   |                                                     |                    |                  |
+   *                                   |                                                     |                    |                  |
+   *        +--------------------------+--------------------------+                          |                    |                  |
+   *        |                          |                          |                          |                    |                  |
+   *        |                          |                          |                          |                    |                  |
+   * RelayLegacyPayload     ChannelRelayTlvPayload     BlindedChannelRelayPayload     NodeRelayPayload     FinalTlvPayload     BlindedFinalPayload
    *
-   * We also introduce additional traits to separate payloads based on their encoding (PerHopPayloadFormat) and on the
-   * type of onion packet they can be used with (PacketType).
+   * We also introduce additional traits to separate payloads based on the type of onion packet they can be used with (PacketType).
    */
-
-  sealed trait PerHopPayloadFormat
-
-  /** Legacy fixed-size 65-bytes onion payload. */
-  sealed trait LegacyFormat extends PerHopPayloadFormat
-
-  /** Variable-length onion payload with optional additional tlv records. */
-  sealed trait TlvFormat extends PerHopPayloadFormat {
-    def records: TlvStream[OnionPaymentPayloadTlv]
-  }
 
   /** Payment onion packet type. */
   sealed trait PacketType
@@ -220,16 +219,17 @@ object PaymentOnion {
   sealed trait PerHopPayload
 
   /** Per-hop payload for an intermediate node. */
-  sealed trait RelayPayload extends PerHopPayload with PerHopPayloadFormat {
+  sealed trait RelayPayload extends PerHopPayload
+
+  sealed trait ChannelRelayPayload extends RelayPayload with PaymentPacket
+
+  sealed trait ChannelRelayData {
 
     /** Amount to forward to the next node. */
     val amountToForward: MilliSatoshi
 
     /** CLTV value to use for the HTLC offered to the next node. */
     val outgoingCltv: CltvExpiry
-  }
-
-  sealed trait ChannelRelayPayload extends RelayPayload with PaymentPacket {
 
     /** Id of the channel to use to forward a payment to the next node. */
     val outgoingChannelId: ShortChannelId
@@ -238,15 +238,10 @@ object PaymentOnion {
   /** Per-hop payload for a final node. */
   sealed trait FinalPayload
       extends PerHopPayload
-      with PerHopPayloadFormat
       with TrampolinePacket
       with PaymentPacket {
     val amount: MilliSatoshi
     val expiry: CltvExpiry
-    val paymentSecret: ByteVector32
-    val totalAmount: MilliSatoshi
-    val paymentPreimage: Option[ByteVector32]
-    val paymentMetadata: Option[ByteVector]
   }
 
   case class RelayLegacyPayload(
@@ -254,11 +249,11 @@ object PaymentOnion {
       amountToForward: MilliSatoshi,
       outgoingCltv: CltvExpiry
   ) extends ChannelRelayPayload
-      with LegacyFormat
+      with ChannelRelayData
 
   case class ChannelRelayTlvPayload(records: TlvStream[OnionPaymentPayloadTlv])
       extends ChannelRelayPayload
-      with TlvFormat {
+      with ChannelRelayData {
     override val amountToForward = records.get[AmountToForward].get.amount
     override val outgoingCltv = records.get[OutgoingCltv].get.cltv
     override val outgoingChannelId =
@@ -280,9 +275,28 @@ object PaymentOnion {
       )
   }
 
+  case class BlindedChannelRelayPayload(
+      records: TlvStream[OnionPaymentPayloadTlv]
+  ) extends ChannelRelayPayload {
+    val blinding_opt: Option[PublicKey] =
+      records.get[BlindingPoint].map(_.publicKey)
+    val encryptedRecipientData: ByteVector =
+      records.get[EncryptedRecipientData].get.data
+  }
+
+  case class BlindedChannelRelayData(
+      relayData: BlindedRouteData.PaymentRelayData,
+      incomingAmount: MilliSatoshi,
+      incomingCltv: CltvExpiry
+  ) extends ChannelRelayData {
+    override val amountToForward: MilliSatoshi =
+      relayData.amountToForward(incomingAmount)
+    override val outgoingCltv: CltvExpiry = relayData.outgoingCltv(incomingCltv)
+    override val outgoingChannelId: ShortChannelId = relayData.outgoingChannelId
+  }
+
   case class NodeRelayPayload(records: TlvStream[OnionPaymentPayloadTlv])
       extends RelayPayload
-      with TlvFormat
       with TrampolinePacket {
     val amountToForward = records.get[AmountToForward].get.amount
     val outgoingCltv = records.get[OutgoingCltv].get.cltv
@@ -302,27 +316,34 @@ object PaymentOnion {
   }
 
   case class FinalTlvPayload(records: TlvStream[OnionPaymentPayloadTlv])
-      extends FinalPayload
-      with TlvFormat {
+      extends FinalPayload {
     override val amount = records.get[AmountToForward].get.amount
     override val expiry = records.get[OutgoingCltv].get.cltv
-    override val paymentSecret = records.get[PaymentData].get.secret
-    override val totalAmount = records
+    val paymentSecret = records.get[PaymentData].get.secret
+    val totalAmount = records
       .get[PaymentData]
       .map(_.totalAmount match {
         case MilliSatoshi(0) => amount
         case totalAmount     => totalAmount
       })
       .getOrElse(amount)
-    override val paymentPreimage = records.get[KeySend].map(_.paymentPreimage)
-    override val paymentMetadata = records.get[PaymentMetadata].map(_.data)
+    val paymentPreimage = records.get[KeySend].map(_.paymentPreimage)
+    val paymentMetadata = records.get[PaymentMetadata].map(_.data)
+  }
+
+  case class BlindedFinalPayload(records: TlvStream[OnionPaymentPayloadTlv])
+      extends FinalPayload {
+    override val amount: MilliSatoshi = records.get[AmountToForward].get.amount
+    override val expiry: CltvExpiry = records.get[OutgoingCltv].get.cltv
+    val encryptedRecipientData: ByteVector =
+      records.get[EncryptedRecipientData].get.data
   }
 
   def createNodeRelayPayload(
       amount: MilliSatoshi,
       expiry: CltvExpiry,
       nextNodeId: PublicKey
-  ): NodeRelayPayload =
+  ): NodeRelayPayload = {
     NodeRelayPayload(
       TlvStream(
         AmountToForward(amount),
@@ -330,6 +351,7 @@ object PaymentOnion {
         OutgoingNodeId(nextNodeId)
       )
     )
+  }
 
   /** Create a trampoline inner payload instructing the trampoline node to relay
     * via a non-trampoline payment.
@@ -359,7 +381,7 @@ object PaymentOnion {
       paymentSecret: ByteVector32,
       paymentMetadata: Option[ByteVector],
       userCustomTlvs: Seq[GenericTlv] = Nil
-  ): FinalPayload = {
+  ): FinalTlvPayload = {
     val tlvs = Seq(
       Some(AmountToForward(amount)),
       Some(OutgoingCltv(expiry)),
@@ -377,7 +399,7 @@ object PaymentOnion {
       paymentMetadata: Option[ByteVector],
       additionalTlvs: Seq[OnionPaymentPayloadTlv] = Nil,
       userCustomTlvs: Seq[GenericTlv] = Nil
-  ): FinalPayload = {
+  ): FinalTlvPayload = {
     val tlvs = Seq(
       Some(AmountToForward(amount)),
       Some(OutgoingCltv(expiry)),
@@ -394,7 +416,7 @@ object PaymentOnion {
       expiry: CltvExpiry,
       paymentSecret: ByteVector32,
       trampolinePacket: OnionRoutingPacket
-  ): FinalPayload = {
+  ): FinalTlvPayload = {
     FinalTlvPayload(
       TlvStream(
         AmountToForward(amount),
@@ -521,18 +543,27 @@ object PaymentOnionCodecs {
   val channelRelayPerHopPayloadCodec: Codec[ChannelRelayPayload] =
     fallback(tlvPerHopPayloadCodec, legacyRelayPerHopPayloadCodec).narrow(
       {
-        case Left(tlvs) if tlvs.get[AmountToForward].isEmpty =>
-          Attempt.failure(MissingRequiredTlv(UInt64(2)))
-        case Left(tlvs) if tlvs.get[OutgoingCltv].isEmpty =>
-          Attempt.failure(MissingRequiredTlv(UInt64(4)))
-        case Left(tlvs) if tlvs.get[OutgoingChannelId].isEmpty =>
-          Attempt.failure(MissingRequiredTlv(UInt64(6)))
-        case Left(tlvs)    => Attempt.successful(ChannelRelayTlvPayload(tlvs))
+        case Left(tlvs) =>
+          tlvs.get[EncryptedRecipientData] match {
+            case Some(_) if tlvs.get[AmountToForward].isDefined =>
+              Attempt.failure(ForbiddenTlv(UInt64(2)))
+            case Some(_) if tlvs.get[OutgoingCltv].isDefined =>
+              Attempt.failure(ForbiddenTlv(UInt64(4)))
+            case Some(_) => Attempt.successful(BlindedChannelRelayPayload(tlvs))
+            case None if tlvs.get[AmountToForward].isEmpty =>
+              Attempt.failure(MissingRequiredTlv(UInt64(2)))
+            case None if tlvs.get[OutgoingCltv].isEmpty =>
+              Attempt.failure(MissingRequiredTlv(UInt64(4)))
+            case None if tlvs.get[OutgoingChannelId].isEmpty =>
+              Attempt.failure(MissingRequiredTlv(UInt64(6)))
+            case None => Attempt.successful(ChannelRelayTlvPayload(tlvs))
+          }
         case Right(legacy) => Attempt.successful(legacy)
       },
       {
-        case legacy: RelayLegacyPayload   => Right(legacy)
-        case ChannelRelayTlvPayload(tlvs) => Left(tlvs)
+        case legacy: RelayLegacyPayload       => Right(legacy)
+        case ChannelRelayTlvPayload(tlvs)     => Left(tlvs)
+        case BlindedChannelRelayPayload(tlvs) => Left(tlvs)
       }
     )
 
@@ -559,24 +590,34 @@ object PaymentOnionCodecs {
           Attempt.failure(MissingRequiredTlv(UInt64(2)))
         case tlvs if tlvs.get[OutgoingCltv].isEmpty =>
           Attempt.failure(MissingRequiredTlv(UInt64(4)))
-        case tlvs if tlvs.get[PaymentData].isEmpty =>
-          Attempt.failure(MissingRequiredTlv(UInt64(8)))
-        case tlvs => Attempt.successful(FinalTlvPayload(tlvs))
+        case tlvs =>
+          tlvs.get[EncryptedRecipientData] match {
+            case Some(_) => Attempt.successful(BlindedFinalPayload(tlvs))
+            case None if tlvs.get[PaymentData].isEmpty =>
+              Attempt.failure(MissingRequiredTlv(UInt64(8)))
+            case None => Attempt.successful(FinalTlvPayload(tlvs))
+          }
       },
-      { case FinalTlvPayload(tlvs) =>
-        tlvs
+      {
+        case FinalTlvPayload(tlvs)     => tlvs
+        case BlindedFinalPayload(tlvs) => tlvs
       }
     )
 
+  /** Codec for payloads that are not blinded or contain the blinding point to
+    * unblind themselves
+    */
   def paymentOnionPerHopPayloadCodec(
       isLastPacket: Boolean
   ): Codec[PaymentPacket] = if (isLastPacket)
     finalPerHopPayloadCodec.upcast[PaymentPacket]
   else channelRelayPerHopPayloadCodec.upcast[PaymentPacket]
 
+  /** Codec for trampoline payloads */
   def trampolineOnionPerHopPayloadCodec(
       isLastPacket: Boolean
   ): Codec[TrampolinePacket] = if (isLastPacket)
     finalPerHopPayloadCodec.upcast[TrampolinePacket]
   else nodeRelayPerHopPayloadCodec.upcast[TrampolinePacket]
+
 }

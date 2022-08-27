@@ -6,6 +6,7 @@ import scodec.bits.ByteVector
 import scodec.codecs._
 
 import scoin._
+import scoin.Crypto.PublicKey
 import scoin.ln._
 import scoin.ln.Features._
 import scoin.ln.TlvCodecs._
@@ -123,6 +124,11 @@ object TlvCodecs {
     */
   val tmillisatoshi: Codec[MilliSatoshi] =
     tu64overflow.xmap(l => MilliSatoshi(l), m => m.toLong)
+
+  /** Truncated millisatoshi (0 to 4 bytes unsigned).
+    */
+  val tmillisatoshi32: Codec[MilliSatoshi] =
+    tu32.xmap(l => MilliSatoshi(l), m => m.toLong)
 
   /** Truncated uint32 (0 to 4 bytes unsigned integer). */
   val tu32: Codec[Long] = tu64.exmap(
@@ -367,8 +373,22 @@ object ClosingSignedTlv {
 sealed trait UpdateAddHtlcTlv extends Tlv
 
 object UpdateAddHtlcTlv {
+
+  /** Blinding ephemeral public key that should be used to derive shared secrets
+    * when using route blinding.
+    */
+  case class BlindingPoint(publicKey: PublicKey) extends UpdateAddHtlcTlv
+
+  private val blindingPoint: Codec[BlindingPoint] =
+    (("length" | constant(
+      ByteVector.fromValidHex("21")
+    )) :: ("blinding" | publicKey))
+      .as[BlindingPoint]
+
   val addHtlcTlvCodec: Codec[TlvStream[UpdateAddHtlcTlv]] = tlvStream(
-    discriminated[UpdateAddHtlcTlv].by(varint)
+    discriminated[UpdateAddHtlcTlv]
+      .by(varint)
+      .typecase(UInt64(0), blindingPoint)
   )
 }
 

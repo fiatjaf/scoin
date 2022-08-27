@@ -193,7 +193,10 @@ case class UpdateAddHtlc(
     tlvStream: TlvStream[UpdateAddHtlcTlv] = TlvStream.empty
 ) extends HtlcMessage
     with UpdateMessage
-    with HasChannelId
+    with HasChannelId {
+  val blinding_opt: Option[PublicKey] =
+    tlvStream.get[UpdateAddHtlcTlv.BlindingPoint].map(_.publicKey)
+}
 
 case class UpdateFulfillHtlc(
     channelId: ByteVector32,
@@ -203,7 +206,9 @@ case class UpdateFulfillHtlc(
 ) extends HtlcMessage
     with UpdateMessage
     with HasChannelId
-    with HtlcSettlementMessage
+    with HtlcSettlementMessage {
+  lazy val paymentHash: ByteVector32 = Crypto.sha256(paymentPreimage)
+}
 
 case class UpdateFailHtlc(
     channelId: ByteVector32,
@@ -307,6 +312,12 @@ object NodeAddress {
       case _ => IPAddress(InetAddress.getByName(host), port)
     }
   }
+
+  def unresolved(port: Int, host: Int*): NodeAddress =
+    InetAddress.getByAddress(host.toArray.map(_.toByte)) match {
+      case v4: Inet4Address => IPv4(v4, port)
+      case v6: Inet6Address => IPv6(v6, port)
+    }
 
   private def isPrivate(address: InetAddress): Boolean =
     address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress

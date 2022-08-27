@@ -291,5 +291,4 @@ package object scoin {
       chainHash: ByteVector32,
       script: ByteVector
   ): String = computeScriptAddress(chainHash, Script.parse(script))
-
 }

@@ -63,6 +63,12 @@ final case class CommitmentSpec(
 
   def findOutgoingHtlcById(id: Long): Option[OutgoingHtlc] =
     htlcs.collectFirst { case htlc: OutgoingHtlc if htlc.add.id == id => htlc }
+
+  lazy val incomingAdds: Set[UpdateAddHtlc] =
+    htlcs.collect(DirectedHtlc.incoming)
+
+  lazy val outgoingAdds: Set[UpdateAddHtlc] =
+    htlcs.collect(DirectedHtlc.outgoing)
 }
 
 object CommitmentSpec {
