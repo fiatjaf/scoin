@@ -14,6 +14,7 @@ case class MilliSatoshi(private val underlying: Long)
 
   override def compare(other: MilliSatoshi): Int =
     underlying.compareTo(other.underlying)
+
   def max(other: MilliSatoshi): MilliSatoshi = if (this > other) this else other
   def min(other: MilliSatoshi): MilliSatoshi = if (this < other) this else other
 
