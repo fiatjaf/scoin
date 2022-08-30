@@ -138,6 +138,29 @@ case class LastCrossSignedState(
     )
 }
 
+object LastCrossSignedState {
+  def empty = LastCrossSignedState(
+    isHost = false,
+    refundScriptPubKey = ByteVector.empty,
+    initHostedChannel = InitHostedChannel(
+      maxHtlcValueInFlightMsat = UInt64(0),
+      htlcMinimumMsat = MilliSatoshi(0),
+      maxAcceptedHtlcs = 0,
+      channelCapacityMsat = MilliSatoshi(0),
+      initialClientBalanceMsat = MilliSatoshi(0)
+    ),
+    blockDay = 0,
+    localBalanceMsat = MilliSatoshi(0),
+    remoteBalanceMsat = MilliSatoshi(0),
+    localUpdates = 0,
+    remoteUpdates = 0,
+    incomingHtlcs = List.empty,
+    outgoingHtlcs = List.empty,
+    remoteSigOfLocal = ByteVector64.Zeroes,
+    localSigOfRemote = ByteVector64.Zeroes
+  )
+}
+
 case class StateUpdate(
     blockDay: Long,
     localUpdates: Long,
