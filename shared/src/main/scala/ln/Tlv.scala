@@ -272,19 +272,19 @@ object ChannelTlv {
   /** A channel type is a set of even feature bits that represent persistent
     * features which affect channel operations.
     */
-  case class ChannelTypeTlv(channelType: ChannelType)
-      extends OpenChannelTlv
-      with AcceptChannelTlv
-
-  val channelTypeCodec: Codec[ChannelTypeTlv] =
-    variableSizeBytesLong(varintoverflow, bytes).xmap(
-      b =>
-        ChannelTypeTlv(ChannelTypes.fromFeatures(Features(b).initFeatures())),
-      tlv =>
-        Features(
-          tlv.channelType.features.map(f => f -> FeatureSupport.Mandatory).toMap
-        ).toByteVector
-    )
+  // case class ChannelTypeTlv(channelType: ChannelType)
+  //     extends OpenChannelTlv
+  //     with AcceptChannelTlv
+  //
+  // val channelTypeCodec: Codec[ChannelTypeTlv] =
+  //   variableSizeBytesLong(varintoverflow, bytes).xmap(
+  //     b =>
+  //       ChannelTypeTlv(ChannelTypes.fromFeatures(Features(b).initFeatures())),
+  //     tlv =>
+  //       Features(
+  //         tlv.channelType.features.map(f => f -> FeatureSupport.Mandatory).toMap
+  //       ).toByteVector
+  //   )
 }
 
 object OpenChannelTlv {
@@ -294,7 +294,7 @@ object OpenChannelTlv {
     discriminated[OpenChannelTlv]
       .by(varint)
       .typecase(UInt64(0), upfrontShutdownScriptCodec)
-      .typecase(UInt64(1), channelTypeCodec)
+    // .typecase(UInt64(1), channelTypeCodec)
   )
 }
 
@@ -305,7 +305,7 @@ object AcceptChannelTlv {
     discriminated[AcceptChannelTlv]
       .by(varint)
       .typecase(UInt64(0), upfrontShutdownScriptCodec)
-      .typecase(UInt64(1), channelTypeCodec)
+    // .typecase(UInt64(1), channelTypeCodec)
   )
 }
 
