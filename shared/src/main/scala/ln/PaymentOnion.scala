@@ -178,25 +178,25 @@ object PaymentOnion {
   /*
    * We use the following architecture for payment onion payloads:
    *
-   *                                                                                  PerHopPayload
-   *                                                                                        |
-   *                                                                                        |
-   *                                                             +--------------------------+------------------------------+
-   *                                                             |                                                         |
-   *                                                             |                                                         |
-   *                                                        RelayPayload                                              FinalPayload
-   *                                                             |                                                         |
-   *                                                             |                                                         |
-   *                                   +-------------------------+---------------------------+                    +--------+---------+
-   *                                   |                                                     |                    |                  |
-   *                                   |                                                     |                    |                  |
-   *                          ChannelRelayPayload                                            |                    |                  |
-   *                                   |                                                     |                    |                  |
-   *                                   |                                                     |                    |                  |
-   *        +--------------------------+--------------------------+                          |                    |                  |
-   *        |                          |                          |                          |                    |                  |
-   *        |                          |                          |                          |                    |                  |
-   * RelayLegacyPayload     ChannelRelayTlvPayload     BlindedChannelRelayPayload     NodeRelayPayload     FinalTlvPayload     BlindedFinalPayload
+   *                                                                   PerHopPayload
+   *                                                                         |
+   *                                                                         |
+   *                                              +--------------------------+---------------------+
+   *                                              |                                                |
+   *                                              |                                                |
+   *                                         RelayPayload                                     FinalPayload
+   *                                              |                                                |
+   *                                              |                                                |
+   *                         +---------------------------------------+                    +--------+---------+
+   *                         |                                       |                    |                  |
+   *                         |                                       |                    |                  |
+   *                ChannelRelayPayload                              |                    |                  |
+   *                         |                                       |                    |                  |
+   *                         |                                       |                    |                  |
+   *        +---------------------------------+                      |                    |                  |
+   *        |                                 |                      |                    |                  |
+   *        |                                 |                      |                    |                  |
+   * ChannelRelayTlvPayload     BlindedChannelRelayPayload     NodeRelayPayload     FinalTlvPayload     BlindedFinalPayload
    *
    * We also introduce additional traits to separate payloads based on the type of onion packet they can be used with (PacketType).
    */
@@ -243,13 +243,6 @@ object PaymentOnion {
     val amount: MilliSatoshi
     val expiry: CltvExpiry
   }
-
-  case class RelayLegacyPayload(
-      outgoingChannelId: ShortChannelId,
-      amountToForward: MilliSatoshi,
-      outgoingCltv: CltvExpiry
-  ) extends ChannelRelayPayload
-      with ChannelRelayData
 
   case class ChannelRelayTlvPayload(records: TlvStream[OnionPaymentPayloadTlv])
       extends ChannelRelayPayload
@@ -532,38 +525,27 @@ object PaymentOnionCodecs {
       .lengthPrefixedTlvStream[OnionPaymentPayloadTlv](onionTlvCodec)
       .complete
 
-  private val legacyRelayPerHopPayloadCodec: Codec[RelayLegacyPayload] =
-    (("realm" | constant(ByteVector.fromByte(0))) ::
-      ("short_channel_id" | shortchannelid) ::
-      ("amt_to_forward" | millisatoshi) ::
-      ("outgoing_cltv_value" | cltvExpiry) ::
-      ("unused_with_v0_version_on_header" | ignore(8 * 12)))
-      .as[RelayLegacyPayload]
-
   val channelRelayPerHopPayloadCodec: Codec[ChannelRelayPayload] =
-    fallback(tlvPerHopPayloadCodec, legacyRelayPerHopPayloadCodec).narrow(
-      {
-        case Left(tlvs) =>
-          tlvs.get[EncryptedRecipientData] match {
-            case Some(_) if tlvs.get[AmountToForward].isDefined =>
-              Attempt.failure(ForbiddenTlv(UInt64(2)))
-            case Some(_) if tlvs.get[OutgoingCltv].isDefined =>
-              Attempt.failure(ForbiddenTlv(UInt64(4)))
-            case Some(_) => Attempt.successful(BlindedChannelRelayPayload(tlvs))
-            case None if tlvs.get[AmountToForward].isEmpty =>
-              Attempt.failure(MissingRequiredTlv(UInt64(2)))
-            case None if tlvs.get[OutgoingCltv].isEmpty =>
-              Attempt.failure(MissingRequiredTlv(UInt64(4)))
-            case None if tlvs.get[OutgoingChannelId].isEmpty =>
-              Attempt.failure(MissingRequiredTlv(UInt64(6)))
-            case None => Attempt.successful(ChannelRelayTlvPayload(tlvs))
-          }
-        case Right(legacy) => Attempt.successful(legacy)
+    tlvPerHopPayloadCodec.narrow(
+      { tlvs =>
+        tlvs.get[EncryptedRecipientData] match {
+          case Some(_) if tlvs.get[AmountToForward].isDefined =>
+            Attempt.failure(ForbiddenTlv(UInt64(2)))
+          case Some(_) if tlvs.get[OutgoingCltv].isDefined =>
+            Attempt.failure(ForbiddenTlv(UInt64(4)))
+          case Some(_) => Attempt.successful(BlindedChannelRelayPayload(tlvs))
+          case None if tlvs.get[AmountToForward].isEmpty =>
+            Attempt.failure(MissingRequiredTlv(UInt64(2)))
+          case None if tlvs.get[OutgoingCltv].isEmpty =>
+            Attempt.failure(MissingRequiredTlv(UInt64(4)))
+          case None if tlvs.get[OutgoingChannelId].isEmpty =>
+            Attempt.failure(MissingRequiredTlv(UInt64(6)))
+          case None => Attempt.successful(ChannelRelayTlvPayload(tlvs))
+        }
       },
       {
-        case legacy: RelayLegacyPayload       => Right(legacy)
-        case ChannelRelayTlvPayload(tlvs)     => Left(tlvs)
-        case BlindedChannelRelayPayload(tlvs) => Left(tlvs)
+        case ChannelRelayTlvPayload(tlvs)     => tlvs
+        case BlindedChannelRelayPayload(tlvs) => tlvs
       }
     )
 
