@@ -384,6 +384,16 @@ case class ChannelUpdate(
 
 object ChannelUpdate {
   case class ChannelFlags(isEnabled: Boolean, isNode1: Boolean)
+  case class Checksum(
+      chainHash: ByteVector32,
+      shortChannelId: ShortChannelId,
+      channelFlags: ChannelUpdate.ChannelFlags,
+      cltvExpiryDelta: CltvExpiryDelta,
+      htlcMinimumMsat: MilliSatoshi,
+      feeBaseMsat: MilliSatoshi,
+      feeProportionalMillionths: Long,
+      htlcMaximumMsat: MilliSatoshi
+  )
 }
 
 sealed trait EncodingType

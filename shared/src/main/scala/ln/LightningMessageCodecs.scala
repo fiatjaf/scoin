@@ -233,7 +233,7 @@ object LightningMessageCodecs {
     ("channelFlags" | (ignore(6) :: reverseBool :: reverseBool))
       .as[ChannelUpdate.ChannelFlags]
 
-  val channelUpdateChecksumCodec =
+  val channelUpdateChecksumCodec = (
     ("chainHash" | bytes32) ::
       ("shortChannelId" | shortchannelid) ::
       ("messageFlags" | constant(1)).dropLeft(
@@ -244,6 +244,7 @@ object LightningMessageCodecs {
           ("feeProportionalMillionths" | uint32) ::
           ("htlcMaximumMsat" | millisatoshi)
       )
+  ).as[ChannelUpdate.Checksum]
 
   val channelUpdateWitnessCodec =
     ("chainHash" | bytes32) ::
