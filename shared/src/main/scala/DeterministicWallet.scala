@@ -12,7 +12,6 @@ import scodec.bits.ByteVector
 /** see https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
   */
 object DeterministicWallet {
-
   case class KeyPath(path: Seq[Long]) {
     def lastChildNumber: Long = if (path.isEmpty) 0L else path.last
 
@@ -48,13 +47,9 @@ object DeterministicWallet {
   }
 
   implicit def keypath2longseq(input: KeyPath): Seq[Long] = input.path
-
   implicit def longseq2keypath(input: Seq[Long]): KeyPath = KeyPath(input)
-
   val hardenedKeyIndex = 0x80000000L
-
   def hardened(index: Long): Long = hardenedKeyIndex + index
-
   def isHardened(index: Long): Boolean = index >= hardenedKeyIndex
 
   case class ExtendedPrivateKey(

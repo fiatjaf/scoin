@@ -8,11 +8,34 @@ import scodec.codecs._
 import scodec.{Attempt, Codec, DecodeResult, Err, SizeBound}
 
 import scoin._
+import scoin.DeterministicWallet.{
+  ExtendedPrivateKey,
+  ExtendedPublicKey,
+  KeyPath
+}
 import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
 import scoin.ln.CommonCodecs._
 
 object CommonCodecs {
+  def mapCodec[K, V](
+      keyCodec: Codec[K],
+      valueCodec: Codec[V]
+  ): Codec[Map[K, V]] = {
+    case class KV(key: K, value: V)
+    val kvCodec = (keyCodec :: valueCodec).as[KV]
+
+    listOfN(uint16, kvCodec).xmap(
+      _.map(kv => kv.key -> kv.value).toMap,
+      _.toList.map((k, v) => KV(k, v))
+    )
+  }
+
+  def setCodec[T](codec: Codec[T]): Codec[Set[T]] =
+    listOfN(uint16, codec).xmap(_.toSet, _.toList)
+
+  val textCodec: Codec[String] = variableSizeBytes(uint16, utf8)
+
   /* Discriminator codec with a default fallback codec (of the same type). */
   def discriminatorWithDefault[A](
       discriminator: Codec[A],
@@ -200,4 +223,37 @@ object CommonCodecs {
     */
   def lengthDelimited[T](codec: Codec[T]): Codec[T] =
     variableSizeBytesLong(varintoverflow, codec)
+
+  val keyPathCodec = ("path" | listOfN(uint16, uint32))
+    .xmap[KeyPath](KeyPath.apply, _.path.toList)
+    .as[KeyPath]
+
+  val extendedPrivateKeyCodec = {
+    ("secretkeybytes" | bytes32) ::
+      ("chaincode" | bytes32) ::
+      ("depth" | uint16) ::
+      ("path" | keyPathCodec) ::
+      ("parent" | int64)
+  }.as[ExtendedPrivateKey]
+
+  val extendedPublicKeyCodec = {
+    ("publickeybytes" | varsizebinarydata) ::
+      ("chaincode" | bytes32) ::
+      ("depth" | uint16) ::
+      ("path" | keyPathCodec) ::
+      ("parent" | int64)
+  }.as[ExtendedPublicKey]
+
+  val outPointCodec = lengthDelimited[OutPoint](
+    bytes.xmap(d => OutPoint.read(d.toArray), OutPoint.write)
+  )
+
+  val txOutCodec = lengthDelimited[TxOut](
+    bytes.xmap(d => TxOut.read(d.toArray), TxOut.write)
+  )
+
+  val txCodec = lengthDelimited[Transaction](
+    bytes.xmap(d => Transaction.read(d.toArray), tx => Transaction.write(tx))
+  )
+
 }
