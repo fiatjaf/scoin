@@ -156,6 +156,7 @@ object CryptoTest extends TestSuite {
       val msg = ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")
       val auxrand32 = ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")
       val sig = Crypto.signSchnorr(msg,seckey,Some(auxrand32))
+      println(s"sig is ${sig.length} bytes: ${sig.toHex}")
       assert("E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0" == sig.toHex.toUpperCase())
       val pubkey = XonlyPublicKey(seckey.publicKey)
       assert("F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9" == pubkey.toHex.toUpperCase())

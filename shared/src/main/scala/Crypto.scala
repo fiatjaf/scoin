@@ -448,11 +448,15 @@ object Crypto extends CryptoPlatform {
     */
   
   trait XonlyPublicKey {
-    def toHex: String = ???
+    val value: ByteVector32
+    def toHex: String = value.toHex
     override def toString = s"XonlyPublicKey($toHex)"
   }
   object XonlyPublicKey {
-    def apply(pubKey: PublicKey): XonlyPublicKey = ???
+    def apply(pubKey: PublicKey): XonlyPublicKey = new XonlyPublicKey {
+      val value = ByteVector32(ByteVector.view(pubKey.value.drop(1).toArray))
+    }
+
   }
 
   /**
@@ -464,7 +468,8 @@ object Crypto extends CryptoPlatform {
     * @param auxrand32
     * @return
     */
-  def signSchnorr(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = ???
+  def signSchnorr(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 =
+    signSchnorrImpl(data,privateKey,auxrand32)
 
   /**
     * Verify a BIP340 schnorr signature
@@ -474,5 +479,6 @@ object Crypto extends CryptoPlatform {
     * @param publicKey
     * @return
     */
-  def verifySignatureSchnorr(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = ???
+  def verifySignatureSchnorr(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = 
+    verifySignatureSchnorrImpl(data,signature,publicKey)
 }
