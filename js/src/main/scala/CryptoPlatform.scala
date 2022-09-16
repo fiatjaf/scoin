@@ -192,6 +192,22 @@ private[scoin] trait CryptoPlatform {
       )
     )
 
+  def signSchnorrImpl(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = {
+    ByteVector64(
+      ByteVector.view(
+        Secp256k1.schnorr.signSync(
+          data.toUint8Array,
+          privateKey.value.bytes.toUint8Array,
+          auxrand32.map(_.toUint8Array).getOrElse(null)
+        )
+      )
+    )
+  }
+
+  def verifySignatureSchnorrImpl(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = {
+    Secp256k1.schnorr.verifySync(signature.toUint8Array,data.toUint8Array,publicKey.value.toUint8Array)
+  }
+
   /** Recover public keys from a signature and the message that was signed. This
     * method will return 2 public keys, and the signature can be verified with
     * both, but only one of them matches that private key that was used to
