@@ -94,7 +94,7 @@ object monkeyPatch {
   }
 
   trait Sha256SyncFunctionType extends js.Function {
-    def apply(msg: Uint8Array):Uint8Array
+    def apply(msgs: Uint8Array*):Uint8Array
   }
 
   def init(): Unit = {
@@ -103,11 +103,8 @@ object monkeyPatch {
       hmacSha256Sync(key, msgs)
     }: HmacSha256SyncFunctionType)
 
-    Secp256k1.utils.asInstanceOf[js.Dynamic].sha256Sync = ({ (msg) =>
-      ByteVector.fromValidHex(
-        HashJS.sha256()
-        .update(ByteVector.view(msg).toHex,"hex")
-        .digest("hex")).toUint8Array
+    Secp256k1.utils.asInstanceOf[js.Dynamic].sha256Sync = ({ (msgs) =>
+      Crypto.sha256(ByteVector.concat(msgs.map(ByteVector.view(_)))).toUint8Array
     }: Sha256SyncFunctionType)
   }
 }
