@@ -146,5 +146,20 @@ object CryptoTest extends TestSuite {
         assert(sig == s)
       }
     }
+
+    /**
+     * Schnorr Tests
+     * inspiration taken from https://github.com/ACINQ/secp256k1-kmp/blob/master/tests/src/commonTest/kotlin/fr/acinq/secp256k1/Secp256k1Test.kt#L291
+     * */
+    test("schnorr - first schnorr signature test") {
+      val seckey = PrivateKey.fromBin(ByteVector.fromValidHex("0000000000000000000000000000000000000000000000000000000000000003"))._1
+      val msg = ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")
+      val auxrand32 = ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")
+      val sig = Crypto.signSchnorr(msg,seckey,Some(auxrand32))
+      assert("E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0" == sig.toHex.toUpperCase())
+      val pubkey = XonlyPublicKey(seckey.publicKey)
+      assert("F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9" == pubkey.toHex.toUpperCase())
+      assert(Crypto.verifySignatureSchnorr(msg,sig,pubkey))
+    }
   }
 }

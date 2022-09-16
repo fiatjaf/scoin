@@ -441,4 +441,38 @@ object Crypto extends CryptoPlatform {
     */
   def sign(data: ByteVector, privateKey: PrivateKey): ByteVector64 =
     sign(data.toArray, privateKey)
+
+  /**
+    * BIP340 / Schnorr
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
+    */
+  
+  trait XonlyPublicKey {
+    def toHex: String = ???
+    override def toString = s"XonlyPublicKey($toHex)"
+  }
+  object XonlyPublicKey {
+    def apply(pubKey: PublicKey): XonlyPublicKey = ???
+  }
+
+  /**
+    * Sign according to BIP340 specification 
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
+    *
+    * @param data data to sign (32 bytes)
+    * @param privateKey private key
+    * @param auxrand32
+    * @return
+    */
+  def signSchnorr(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = ???
+
+  /**
+    * Verify a BIP340 schnorr signature
+    *
+    * @param data
+    * @param signature
+    * @param publicKey
+    * @return
+    */
+  def verifySignatureSchnorr(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = ???
 }
