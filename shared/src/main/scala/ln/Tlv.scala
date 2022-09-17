@@ -125,11 +125,6 @@ object TlvCodecs {
   val tmillisatoshi: Codec[MilliSatoshi] =
     tu64overflow.xmap(l => MilliSatoshi(l), m => m.toLong)
 
-  /** Truncated millisatoshi (0 to 4 bytes unsigned).
-    */
-  val tmillisatoshi32: Codec[MilliSatoshi] =
-    tu32.xmap(l => MilliSatoshi(l), m => m.toLong)
-
   /** Truncated uint32 (0 to 4 bytes unsigned integer). */
   val tu32: Codec[Long] = tu64.exmap(
     {
@@ -138,6 +133,11 @@ object TlvCodecs {
     },
     l => Attempt.Successful(UInt64(l))
   )
+
+  /** Truncated millisatoshi (0 to 4 bytes unsigned).
+    */
+  val tmillisatoshi32: Codec[MilliSatoshi] =
+    tu32.xmap(l => MilliSatoshi(l), m => m.toLong)
 
   /** Truncated uint16 (0 to 2 bytes unsigned integer). */
   val tu16: Codec[Int] = tu32.exmap(
