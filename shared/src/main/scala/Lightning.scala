@@ -128,7 +128,7 @@ case class TimestampSecond(private val underlying: Long)
     extends Ordered[TimestampSecond] {
   require(
     underlying >= 0 && underlying <= 253402300799L,
-    "invalid timestamp value"
+    s"invalid timestamp value $underlying"
   )
   // @formatter:off
   def toLong: Long = underlying

@@ -21,7 +21,12 @@ case class InvokeHostedChannel(
     secret: ByteVector = ByteVector.empty
 ) extends HostedChannelMessage {
   val finalSecret: ByteVector = secret.take(128)
-  override def toString(): String = s"InvokeHostedChannel()"
+  override def toString(): String = {
+    val chainHashFirstChars = chainHash.toHex.take(6)
+    val secretFirstChars =
+      if (secret.size > 0) secret.toHex.take(6) else "<no-secret>"
+    s"InvokeHostedChannel($chainHashFirstChars / $secretFirstChars)"
+  }
 }
 
 case class InitHostedChannel(
