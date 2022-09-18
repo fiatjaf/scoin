@@ -221,7 +221,7 @@ private[scoin] trait CryptoPlatform {
   def verifySignatureSchnorrImpl(
       data: ByteVector32,
       signature: ByteVector,
-      publicKey: XonlyPublicKey
+      publicKey: XOnlyPublicKey
   ): Boolean = {
     // note argument order nativeSecp256k1(sig, data, pub) which is different than ours
     nativeSecp256k1.verifySchnorr(

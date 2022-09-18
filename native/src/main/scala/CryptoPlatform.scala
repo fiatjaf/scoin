@@ -239,7 +239,7 @@ private[scoin] trait CryptoPlatform {
   def verifySignatureSchnorrImpl(
       data: ByteVector32,
       signature: ByteVector,
-      publicKey: XonlyPublicKey
+      publicKey: XOnlyPublicKey
   ): Boolean = {
     throw new NotImplementedError(
       "implementation missing - verifySignatureSchnorr - update sn-secp256k1 library and then come back and implement this"

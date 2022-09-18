@@ -80,7 +80,7 @@ object Crypto extends CryptoPlatform {
     require(isPubKeyValidLax(value), "pubkey is not valid")
 
     def hash160: ByteVector = Crypto.hash160(value)
-
+    def xonly: XOnlyPublicKey = XOnlyPublicKey(this)
     def isValid: Boolean = isPubKeyValidStrict(this.value)
 
     def +(that: PublicKey): PublicKey = add(that)
@@ -446,16 +446,14 @@ object Crypto extends CryptoPlatform {
     * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
     */
 
-  trait XonlyPublicKey {
-    val value: ByteVector32
+  case class XOnlyPublicKey(value: ByteVector32) {
     def toHex: String = value.toHex
-    override def toString = s"XonlyPublicKey($toHex)"
+    override def toString = s"XOnlyPublicKey($toHex)"
   }
-  object XonlyPublicKey {
-    def apply(pubKey: PublicKey): XonlyPublicKey = new XonlyPublicKey {
-      val value = ByteVector32(ByteVector.view(pubKey.value.drop(1).toArray))
-    }
-
+  object XOnlyPublicKey {
+    def apply(pubKey: PublicKey): XOnlyPublicKey = XOnlyPublicKey(
+      ByteVector32(ByteVector.view(pubKey.value.drop(1).toArray))
+    )
   }
 
   /** Sign according to BIP340 specification
@@ -485,7 +483,7 @@ object Crypto extends CryptoPlatform {
   def verifySignatureSchnorr(
       data: ByteVector32,
       signature: ByteVector,
-      publicKey: XonlyPublicKey
+      publicKey: XOnlyPublicKey
   ): Boolean =
     verifySignatureSchnorrImpl(data, signature, publicKey)
 }
