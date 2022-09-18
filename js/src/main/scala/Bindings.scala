@@ -61,6 +61,15 @@ object Secp256k1 extends js.Object {
     def toRawBytes(compressed: Boolean): Uint8Array = js.native
     def assertValidity(): Unit = js.native
   }
+
+  @js.native
+  object schnorr extends js.Object {
+    def signSync(msg: Uint8Array, privateKey: Uint8Array, auxRandom: Uint8Array = null): Uint8Array
+      = js.native
+
+    def verifySync(sig: Uint8Array, msg: Uint8Array, pub: Uint8Array): Boolean
+      = js.native
+  }
 }
 
 object monkeyPatch {
@@ -84,10 +93,19 @@ object monkeyPatch {
       .toUint8Array
   }
 
+  trait Sha256SyncFunctionType extends js.Function {
+    def apply(msgs: Uint8Array*):Uint8Array
+  }
+
   def init(): Unit = {
+
     Secp256k1.utils.asInstanceOf[js.Dynamic].hmacSha256Sync = ({ (key, msgs) =>
       hmacSha256Sync(key, msgs)
     }: HmacSha256SyncFunctionType)
+
+    Secp256k1.utils.asInstanceOf[js.Dynamic].sha256Sync = ({ (msgs) =>
+      Crypto.sha256(ByteVector.concat(msgs.map(ByteVector.view(_)))).toUint8Array
+    }: Sha256SyncFunctionType)
   }
 }
 
