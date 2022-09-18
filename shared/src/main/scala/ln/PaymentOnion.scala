@@ -475,13 +475,13 @@ object PaymentOnionCodecs {
   private val blindingPoint: Codec[BlindingPoint] =
     (("length" | constant(
       ByteVector.fromValidHex("21")
-    )) :: ("blinding" | publicKey))
+    )) :: ("blinding" | publickey))
       .as[BlindingPoint]
 
   private val outgoingNodeId: Codec[OutgoingNodeId] =
     (("length" | constant(
       ByteVector.fromValidHex("21")
-    )) :: ("node_id" | publicKey))
+    )) :: ("node_id" | publickey))
       .as[OutgoingNodeId]
 
   private val paymentMetadata: Codec[PaymentMetadata] =

@@ -458,7 +458,7 @@ object Bolt11Invoice {
     import scodec.{Attempt, Codec, DecodeResult}
 
     val extraHopCodec: Codec[ExtraHop] = (
-      ("nodeId" | publicKey) ::
+      ("nodeId" | publickey) ::
         ("shortChannelId" | shortchannelid) ::
         ("fee_base_msat" | millisatoshi32) ::
         ("fee_proportional_millionth" | uint32) ::

@@ -13,7 +13,7 @@ import scoin.DeterministicWallet.{
   ExtendedPublicKey,
   KeyPath
 }
-import scoin.Crypto.{PrivateKey, PublicKey}
+import scoin.Crypto.{PrivateKey, PublicKey, XOnlyPublicKey}
 import scoin.ln._
 
 object CommonCodecs {
@@ -181,14 +181,19 @@ object CommonCodecs {
   val shortchannelid: Codec[ShortChannelId] =
     int64.xmap(l => ShortChannelId(l), s => s.toLong)
 
-  val privateKey: Codec[PrivateKey] = Codec[PrivateKey](
+  val privatekey: Codec[PrivateKey] = Codec[PrivateKey](
     (priv: PrivateKey) => bytes(32).encode(priv.value),
     (wire: BitVector) => bytes(32).decode(wire).map(_.map(b => PrivateKey(b)))
   )
 
-  val publicKey: Codec[PublicKey] = Codec[PublicKey](
+  val publickey: Codec[PublicKey] = Codec[PublicKey](
     (pub: PublicKey) => bytes(33).encode(pub.value),
     (wire: BitVector) => bytes(33).decode(wire).map(_.map(b => PublicKey(b)))
+  )
+
+  val xonlypublickey: Codec[XOnlyPublicKey] = Codec[XOnlyPublicKey](
+    (pub: XOnlyPublicKey) => bytes32.encode(pub.value),
+    (wire: BitVector) => bytes32.decode(wire).map(_.map(b => XOnlyPublicKey(b)))
   )
 
   val rgb: Codec[Color] = bytes(3).xmap(

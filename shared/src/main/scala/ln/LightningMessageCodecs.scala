@@ -60,8 +60,8 @@ object LightningMessageCodecs {
     (("channelId" | bytes32) ::
       ("nextLocalCommitmentNumber" | uint64overflow) ::
       ("nextRemoteRevocationNumber" | uint64overflow) ::
-      ("yourLastPerCommitmentSecret" | privateKey) ::
-      ("myCurrentPerCommitmentPoint" | publicKey) ::
+      ("yourLastPerCommitmentSecret" | privatekey) ::
+      ("myCurrentPerCommitmentPoint" | publickey) ::
       ("tlvStream" | ChannelReestablishTlv.channelReestablishTlvCodec))
       .as[ChannelReestablish]
 
@@ -77,12 +77,12 @@ object LightningMessageCodecs {
       ("feeratePerKw" | feeratePerKw) ::
       ("toSelfDelay" | cltvExpiryDelta) ::
       ("maxAcceptedHtlcs" | uint16) ::
-      ("fundingPubkey" | publicKey) ::
-      ("revocationBasepoint" | publicKey) ::
-      ("paymentBasepoint" | publicKey) ::
-      ("delayedPaymentBasepoint" | publicKey) ::
-      ("htlcBasepoint" | publicKey) ::
-      ("firstPerCommitmentPoint" | publicKey) ::
+      ("fundingPubkey" | publickey) ::
+      ("revocationBasepoint" | publickey) ::
+      ("paymentBasepoint" | publickey) ::
+      ("delayedPaymentBasepoint" | publickey) ::
+      ("htlcBasepoint" | publickey) ::
+      ("firstPerCommitmentPoint" | publickey) ::
       ("channelFlags" | (ignore(7) dropLeft bool)
         .as[OpenChannel.ChannelFlags]) ::
       ("tlvStream" | OpenChannelTlv.openTlvCodec)).as[OpenChannel]
@@ -96,12 +96,12 @@ object LightningMessageCodecs {
       ("minimumDepth" | uint32) ::
       ("toSelfDelay" | cltvExpiryDelta) ::
       ("maxAcceptedHtlcs" | uint16) ::
-      ("fundingPubkey" | publicKey) ::
-      ("revocationBasepoint" | publicKey) ::
-      ("paymentBasepoint" | publicKey) ::
-      ("delayedPaymentBasepoint" | publicKey) ::
-      ("htlcBasepoint" | publicKey) ::
-      ("firstPerCommitmentPoint" | publicKey) ::
+      ("fundingPubkey" | publickey) ::
+      ("revocationBasepoint" | publickey) ::
+      ("paymentBasepoint" | publickey) ::
+      ("delayedPaymentBasepoint" | publickey) ::
+      ("htlcBasepoint" | publickey) ::
+      ("firstPerCommitmentPoint" | publickey) ::
       ("tlvStream" | AcceptChannelTlv.acceptTlvCodec)).as[AcceptChannel]
 
   val fundingCreatedCodec: Codec[FundingCreated] =
@@ -119,7 +119,7 @@ object LightningMessageCodecs {
 
   val fundingLockedCodec: Codec[FundingLocked] =
     (("channelId" | bytes32) ::
-      ("nextPerCommitmentPoint" | publicKey) ::
+      ("nextPerCommitmentPoint" | publickey) ::
       ("tlvStream" | FundingLockedTlv.fundingLockedTlvCodec)).as[FundingLocked]
 
   val shutdownCodec: Codec[Shutdown] =
@@ -172,8 +172,8 @@ object LightningMessageCodecs {
 
   val revokeAndAckCodec: Codec[RevokeAndAck] =
     (("channelId" | bytes32) ::
-      ("perCommitmentSecret" | privateKey) ::
-      ("nextPerCommitmentPoint" | publicKey) ::
+      ("perCommitmentSecret" | privatekey) ::
+      ("nextPerCommitmentPoint" | publickey) ::
       ("tlvStream" | RevokeAndAckTlv.revokeAndAckTlvCodec)).as[RevokeAndAck]
 
   val updateFeeCodec: Codec[UpdateFee] =
@@ -193,10 +193,10 @@ object LightningMessageCodecs {
     ("features" | featuresCodec) ::
       ("chainHash" | bytes32) ::
       ("shortChannelId" | shortchannelid) ::
-      ("nodeId1" | publicKey) ::
-      ("nodeId2" | publicKey) ::
-      ("bitcoinKey1" | publicKey) ::
-      ("bitcoinKey2" | publicKey) ::
+      ("nodeId1" | publickey) ::
+      ("nodeId2" | publickey) ::
+      ("bitcoinKey1" | publickey) ::
+      ("bitcoinKey2" | publickey) ::
       ("tlvStream" | ChannelAnnouncementTlv.channelAnnouncementTlvCodec)
 
   val channelAnnouncementCodec: Codec[ChannelAnnouncement] =
@@ -209,7 +209,7 @@ object LightningMessageCodecs {
   val nodeAnnouncementWitnessCodec =
     ("features" | featuresCodec) ::
       ("timestamp" | timestampSecond) ::
-      ("nodeId" | publicKey) ::
+      ("nodeId" | publickey) ::
       ("rgbColor" | rgb) ::
       ("alias" | zeropaddedstring(32)) ::
       ("addresses" | listofnodeaddresses) ::

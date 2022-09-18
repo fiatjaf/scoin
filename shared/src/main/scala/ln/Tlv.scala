@@ -382,7 +382,7 @@ object UpdateAddHtlcTlv {
   private val blindingPoint: Codec[BlindingPoint] =
     (("length" | constant(
       ByteVector.fromValidHex("21")
-    )) :: ("blinding" | publicKey))
+    )) :: ("blinding" | publickey))
       .as[BlindingPoint]
 
   val addHtlcTlvCodec: Codec[TlvStream[UpdateAddHtlcTlv]] = tlvStream(

@@ -127,7 +127,7 @@ object BlindedRouteData {
 object RouteBlindingEncryptedDataCodecs {
   import BlindedRouteData._
   import RouteBlindingEncryptedDataTlv._
-  import scoin.CommonCodecs.{publicKey, shortchannelid, varint, varintoverflow}
+  import scoin.CommonCodecs.{publickey, shortchannelid, varint, varintoverflow}
   import scodec.Codec
   import scodec.codecs._
 
@@ -139,14 +139,14 @@ object RouteBlindingEncryptedDataCodecs {
   private val outgoingNodeId: Codec[OutgoingNodeId] =
     (("length" | constant(
       ByteVector.fromValidHex("21")
-    )) :: ("node_id" | publicKey))
+    )) :: ("node_id" | publickey))
       .as[OutgoingNodeId]
   private val pathId: Codec[PathId] =
     variableSizeBytesLong(varintoverflow, "path_id" | bytes).as[PathId]
   private val nextBlinding: Codec[NextBlinding] =
     (("length" | constant(
       ByteVector.fromValidHex("21")
-    )) :: ("blinding" | publicKey))
+    )) :: ("blinding" | publickey))
       .as[NextBlinding]
   private val paymentRelay: Codec[PaymentRelay] = variableSizeBytesLong(
     varintoverflow,
