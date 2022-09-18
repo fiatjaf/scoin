@@ -202,7 +202,7 @@ private[scoin] trait CryptoPlatform {
         Secp256k1.schnorr.signSync(
           data.toUint8Array,
           privateKey.value.bytes.toUint8Array,
-          auxrand32.map(_.toUint8Array).getOrElse(null)
+          auxrand32.map(_.toUint8Array).getOrElse(js.undefined)
         )
       )
     )

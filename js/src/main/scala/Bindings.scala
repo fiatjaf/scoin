@@ -67,7 +67,7 @@ object Secp256k1 extends js.Object {
     def signSync(
         msg: Uint8Array,
         privateKey: Uint8Array,
-        auxRandom: Uint8Array = null
+        auxRandom: js.UndefOr[Uint8Array]
     ): Uint8Array = js.native
 
     def verifySync(sig: Uint8Array, msg: Uint8Array, pub: Uint8Array): Boolean =
