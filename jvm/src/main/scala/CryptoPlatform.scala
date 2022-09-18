@@ -190,9 +190,8 @@ private[scoin] trait CryptoPlatform {
       publicKey.value.toArray
     )
 
-  /**
-    * This is the platform specific (jvm) signining function
-    * called by Crypto.sign(..)
+  /** This is the platform specific (jvm) signining function called by
+    * Crypto.sign(..)
     *
     * @param data
     * @param privateKey
@@ -203,15 +202,33 @@ private[scoin] trait CryptoPlatform {
       ByteVector.view(nativeSecp256k1.sign(data, privateKey.value.toArray))
     )
 
-  def signSchnorrImpl(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = {
+  def signSchnorrImpl(
+      data: ByteVector32,
+      privateKey: PrivateKey,
+      auxrand32: Option[ByteVector32]
+  ): ByteVector64 = {
     ByteVector64(
-      ByteVector.view(nativeSecp256k1.signSchnorr(data.toArray,privateKey.value.toArray,auxrand32.map(_.toArray).getOrElse(Array.empty)))
+      ByteVector.view(
+        nativeSecp256k1.signSchnorr(
+          data.toArray,
+          privateKey.value.toArray,
+          auxrand32.map(_.toArray).getOrElse(Array.empty)
+        )
+      )
     )
   }
 
-  def verifySignatureSchnorrImpl(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = {
-    //note argument order nativeSecp256k1(sig, data, pub) which is different than ours
-    nativeSecp256k1.verifySchnorr(ByteVector64(signature).toArray,data.toArray,publicKey.value.toArray)
+  def verifySignatureSchnorrImpl(
+      data: ByteVector32,
+      signature: ByteVector,
+      publicKey: XonlyPublicKey
+  ): Boolean = {
+    // note argument order nativeSecp256k1(sig, data, pub) which is different than ours
+    nativeSecp256k1.verifySchnorr(
+      ByteVector64(signature).toArray,
+      data.toArray,
+      publicKey.value.toArray
+    )
   }
 
   /** Recover public keys from a signature and the message that was signed. This

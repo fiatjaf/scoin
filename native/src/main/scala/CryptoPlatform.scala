@@ -226,12 +226,24 @@ private[scoin] trait CryptoPlatform {
       )
     )
 
-  def signSchnorrImpl(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = {
-    throw new NotImplementedError("implementation missing - signSchnorr - update sn-secp256k1 library and then come back and implement this")
+  def signSchnorrImpl(
+      data: ByteVector32,
+      privateKey: PrivateKey,
+      auxrand32: Option[ByteVector32]
+  ): ByteVector64 = {
+    throw new NotImplementedError(
+      "implementation missing - signSchnorr - update sn-secp256k1 library and then come back and implement this"
+    )
   }
 
-  def verifySignatureSchnorrImpl(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = {
-    throw new NotImplementedError("implementation missing - verifySignatureSchnorr - update sn-secp256k1 library and then come back and implement this")
+  def verifySignatureSchnorrImpl(
+      data: ByteVector32,
+      signature: ByteVector,
+      publicKey: XonlyPublicKey
+  ): Boolean = {
+    throw new NotImplementedError(
+      "implementation missing - verifySignatureSchnorr - update sn-secp256k1 library and then come back and implement this"
+    )
   }
 
   /** Recover public keys from a signature and the message that was signed. This

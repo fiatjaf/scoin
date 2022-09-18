@@ -192,7 +192,11 @@ private[scoin] trait CryptoPlatform {
       )
     )
 
-  def signSchnorrImpl(data: ByteVector32, privateKey: PrivateKey, auxrand32: Option[ByteVector32]): ByteVector64 = {
+  def signSchnorrImpl(
+      data: ByteVector32,
+      privateKey: PrivateKey,
+      auxrand32: Option[ByteVector32]
+  ): ByteVector64 = {
     ByteVector64(
       ByteVector.view(
         Secp256k1.schnorr.signSync(
@@ -204,8 +208,16 @@ private[scoin] trait CryptoPlatform {
     )
   }
 
-  def verifySignatureSchnorrImpl(data: ByteVector32, signature: ByteVector, publicKey: XonlyPublicKey): Boolean = {
-    Secp256k1.schnorr.verifySync(signature.toUint8Array,data.toUint8Array,publicKey.value.toUint8Array)
+  def verifySignatureSchnorrImpl(
+      data: ByteVector32,
+      signature: ByteVector,
+      publicKey: XonlyPublicKey
+  ): Boolean = {
+    Secp256k1.schnorr.verifySync(
+      signature.toUint8Array,
+      data.toUint8Array,
+      publicKey.value.toUint8Array
+    )
   }
 
   /** Recover public keys from a signature and the message that was signed. This
