@@ -9,7 +9,7 @@ import scodec.Codec
 import scoin._
 import scoin.ln._
 import scoin.ln.TlvCodecs._
-import scoin.ln.CommonCodecs._
+import scoin.CommonCodecs._
 import scoin.Crypto.{PublicKey, PrivateKey}
 import scoin.hc.HostedChannelCodecs._
 

@@ -5,8 +5,8 @@ import scodec.codecs._
 import scodec.{Attempt, Codec}
 
 import scoin._
+import scoin.CommonCodecs._
 import scoin.ln._
-import scoin.ln.CommonCodecs._
 
 object LightningMessageCodecs {
   val featuresCodec: Codec[Features[Feature]] =

@@ -452,7 +452,7 @@ object Bolt11Invoice {
   case class InvoiceFeatures(features: Features[Feature]) extends TaggedField
 
   object Codecs {
-    import scoin.ln.CommonCodecs._
+    import scoin.CommonCodecs._
     import scodec.bits.BitVector
     import scodec.codecs._
     import scodec.{Attempt, Codec, DecodeResult}

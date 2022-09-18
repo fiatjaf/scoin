@@ -4,8 +4,8 @@ import scodec.bits.ByteVector
 import scodec.codecs._
 import scodec.{Attempt, Codec}
 import scoin._
+import scoin.CommonCodecs._
 import scoin.ln._
-import scoin.ln.CommonCodecs._
 import scoin.ln.LightningMessageCodecs._
 import scoin.ln.FailureMessageCodecs.failureMessageCodec
 

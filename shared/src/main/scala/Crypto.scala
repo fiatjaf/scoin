@@ -469,7 +469,7 @@ object Crypto extends CryptoPlatform {
   def signSchnorr(
       data: ByteVector32,
       privateKey: PrivateKey,
-      auxrand32: Option[ByteVector32]
+      auxrand32: Option[ByteVector32] = None
   ): ByteVector64 =
     signSchnorrImpl(data, privateKey, auxrand32)
 

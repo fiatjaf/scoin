@@ -1,4 +1,4 @@
-package scoin.ln
+package scoin
 
 import java.net.{Inet4Address, Inet6Address, InetAddress}
 import scala.Ordering.Implicits._
@@ -15,7 +15,6 @@ import scoin.DeterministicWallet.{
 }
 import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
-import scoin.ln.CommonCodecs._
 
 object CommonCodecs {
   def mapCodec[K, V](

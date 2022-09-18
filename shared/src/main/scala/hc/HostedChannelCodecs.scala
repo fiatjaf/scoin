@@ -5,8 +5,8 @@ import scodec.codecs._
 import scodec.bits._
 import scodec.{Attempt, Err}
 
+import scoin.CommonCodecs._
 import scoin.ln._
-import scoin.ln.CommonCodecs._
 import scoin.ln.LightningMessageCodecs._
 
 object HostedChannelCodecs {

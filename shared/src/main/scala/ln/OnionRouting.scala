@@ -5,7 +5,7 @@ import scodec.codecs._
 import scodec.{Codec, Err}
 
 import scoin._
-import scoin.ln.CommonCodecs.bytes32
+import scoin.CommonCodecs.bytes32
 
 case class OnionRoutingPacket(
     version: Int,

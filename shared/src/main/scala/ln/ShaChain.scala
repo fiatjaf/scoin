@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import scodec.Codec
 
 import scoin._
-import scoin.ln.CommonCodecs._
+import scoin.CommonCodecs._
 
 /** see
   * https://github.com/rustyrussell/lightning-rfc/blob/master/early-drafts/shachain.txt

@@ -5,9 +5,9 @@ import scodec.Attempt
 import scodec.bits.ByteVector
 
 import scoin._
+import scoin.CommonCodecs.{cltvExpiry, cltvExpiryDelta}
 import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
-import scoin.ln.CommonCodecs.{cltvExpiry, cltvExpiryDelta}
 import scoin.ln.LightningMessageCodecs.featuresCodec
 import scoin.ln.OnionRoutingCodecs.{ForbiddenTlv, MissingRequiredTlv}
 import scoin.ln.TlvCodecs.{tmillisatoshi, tmillisatoshi32}
@@ -127,12 +127,7 @@ object BlindedRouteData {
 object RouteBlindingEncryptedDataCodecs {
   import BlindedRouteData._
   import RouteBlindingEncryptedDataTlv._
-  import scoin.ln.CommonCodecs.{
-    publicKey,
-    shortchannelid,
-    varint,
-    varintoverflow
-  }
+  import scoin.CommonCodecs.{publicKey, shortchannelid, varint, varintoverflow}
   import scodec.Codec
   import scodec.codecs._
 
