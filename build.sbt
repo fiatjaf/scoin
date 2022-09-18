@@ -17,6 +17,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "org.scodec" %%% "scodec-bits" % "1.1.34",
       "org.scodec" %%% "scodec-core" % (if (scalaVersion.value.startsWith("2.")) "1.11.9" else "2.2.0"),
+      "com.comcast" %%% "ip4s-core" % "3.2.0",
 
       "com.lihaoyi" %%% "utest" % "0.8.0" % Test
     ),

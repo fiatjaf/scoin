@@ -1,11 +1,11 @@
 package scoin
 
-import java.net.{Inet4Address, Inet6Address, InetAddress}
 import scala.Ordering.Implicits._
 import scala.util.Try
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs._
 import scodec.{Attempt, Codec, DecodeResult, Err, SizeBound}
+import com.comcast.ip4s.{Ipv4Address, Ipv6Address, IpAddress}
 
 import scoin._
 import scoin.DeterministicWallet.{
@@ -149,19 +149,18 @@ object CommonCodecs {
 
   val listofsignatures: Codec[List[ByteVector64]] = listOfN(uint16, bytes64)
 
-  val ipv4address: Codec[Inet4Address] = bytes(4).xmap(
-    b => InetAddress.getByAddress(b.toArray).asInstanceOf[Inet4Address],
-    a => ByteVector(a.getAddress)
+  val ipv4address: Codec[Ipv4Address] = bytes(4).xmap(
+    b => Ipv4Address.fromBytes(b(0), b(1), b(2), b(3)),
+    a => ByteVector(a.toBytes)
   )
 
-  val ipv6address: Codec[Inet6Address] = bytes(16).exmap(
-    b => Attempt.fromTry(Try(Inet6Address.getByAddress("", b.toArray, 0))),
-    a => Attempt.fromTry(Try(ByteVector(a.getAddress)))
-  )
-
-  def base32(size: Int): Codec[String] = bytes(size).xmap(
-    b => b.toBase32.toLowerCase(),
-    a => ByteVector.fromBase32(a.toUpperCase()).get
+  val ipv6address: Codec[Ipv6Address] = bytes(16).exmap(
+    b =>
+      Attempt.fromOption(
+        Ipv6Address.fromBytes(b.toArray),
+        Err("failed to parse ipv6")
+      ),
+    a => Attempt.Successful(ByteVector(a.toBytes))
   )
 
   val nodeaddress: Codec[NodeAddress] =
@@ -171,6 +170,11 @@ object CommonCodecs {
       .typecase(2, (ipv6address :: uint16).as[IPv6])
       .typecase(3, (base32(10) :: uint16).as[Tor2])
       .typecase(4, (base32(35) :: uint16).as[Tor3])
+
+  def base32(size: Int): Codec[String] = bytes(size).xmap(
+    b => b.toBase32.toLowerCase(),
+    a => ByteVector.fromBase32(a.toUpperCase()).get
+  )
 
   // this one is a bit different from most other codecs: the first 'len' element is *not* the number of items
   // in the list but rather the  number of bytes of the encoded list. The rationale is once we've read this

@@ -1,9 +1,9 @@
 package scoin.ln
 
-import java.net.{Inet4Address, Inet6Address, InetAddress}
 import java.nio.charset.StandardCharsets
 import scala.util.Try
 import scodec.bits.ByteVector
+import com.comcast.ip4s.{Ipv4Address, Ipv6Address, IpAddress}
 
 import scoin._
 import scoin.Crypto.{PrivateKey, PublicKey}
@@ -294,57 +294,37 @@ sealed trait OnionAddress extends NodeAddress
 sealed trait IPAddress extends NodeAddress
 
 object NodeAddress {
-
-  /** Creates a NodeAddress from a host and port.
-    *
-    * Note that non-onion hosts will be resolved.
-    *
-    * We don't attempt to resolve onion addresses (it will be done by the tor
-    * proxy), so we just recognize them based on the .onion TLD and rely on
-    * their length to separate v2/v3.
-    */
   def fromParts(host: String, port: Int): Try[NodeAddress] = Try {
     host match {
       case _ if host.endsWith(".onion") && host.length == 22 =>
         Tor2(host.dropRight(6), port)
       case _ if host.endsWith(".onion") && host.length == 62 =>
         Tor3(host.dropRight(6), port)
-      case _ => IPAddress(InetAddress.getByName(host), port)
-    }
-  }
-
-  def unresolved(port: Int, host: Int*): NodeAddress =
-    InetAddress.getByAddress(host.toArray.map(_.toByte)) match {
-      case v4: Inet4Address => IPv4(v4, port)
-      case v6: Inet6Address => IPv6(v6, port)
-    }
-
-  private def isPrivate(address: InetAddress): Boolean =
-    address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress
-
-  def isPublicIPAddress(address: NodeAddress): Boolean = {
-    address match {
-      case IPv4(ipv4, _) if !isPrivate(ipv4) => true
-      case IPv6(ipv6, _) if !isPrivate(ipv6) => true
-      case _                                 => false
+      case _ => IPAddress(IpAddress.fromString(host).get, port)
     }
   }
 }
 
 object IPAddress {
-  def apply(inetAddress: InetAddress, port: Int): IPAddress =
-    inetAddress match {
-      case address: Inet4Address => IPv4(address, port)
-      case address: Inet6Address => IPv6(address, port)
+  def apply(ipAddress: IpAddress, port: Int): IPAddress =
+    ipAddress match {
+      case address: Ipv4Address => IPv4(address, port)
+      case address: Ipv6Address => IPv6(address, port)
     }
 }
 
-// @formatter:off
-case class IPv4(ipv4: Inet4Address, port: Int) extends IPAddress { override def host: String = ipv4.toString() }
-case class IPv6(ipv6: Inet6Address, port: Int) extends IPAddress { override def host: String = ipv6.toString() }
-case class Tor2(tor2: String, port: Int) extends OnionAddress { override def host: String = tor2 + ".onion" }
-case class Tor3(tor3: String, port: Int) extends OnionAddress { override def host: String = tor3 + ".onion" }
-// @formatter:on
+case class IPv4(ipv4: Ipv4Address, port: Int) extends IPAddress {
+  override def host: String = ipv4.toString()
+}
+case class IPv6(ipv6: Ipv6Address, port: Int) extends IPAddress {
+  override def host: String = ipv6.toString()
+}
+case class Tor2(tor2: String, port: Int) extends OnionAddress {
+  override def host: String = tor2 + ".onion"
+}
+case class Tor3(tor3: String, port: Int) extends OnionAddress {
+  override def host: String = tor3 + ".onion"
+}
 
 case class NodeAnnouncement(
     signature: ByteVector64,

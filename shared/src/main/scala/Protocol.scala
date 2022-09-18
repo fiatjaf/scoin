@@ -1,11 +1,11 @@
 package scoin
 
 import java.io._
-import java.net.{Inet4Address, Inet6Address, InetAddress}
 import java.nio.{ByteBuffer, ByteOrder}
 import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuffer
 import scodec.bits._
+import com.comcast.ip4s.{Ipv4Address, Ipv6Address, IpAddress}
 
 case class ByteVector32(bytes: ByteVector) {
   require(bytes.size == 32, s"size must be 32 bytes, is ${bytes.size} bytes")
@@ -416,7 +416,7 @@ object NetworkAddressWithTimestamp
     val services = uint64(in)
     val raw = new Array[Byte](16)
     in.read(raw)
-    val address = InetAddress.getByAddress(raw)
+    val address = IpAddress.fromBytes(raw).get
     val port = uint16(in, ByteOrder.BIG_ENDIAN)
     NetworkAddressWithTimestamp(time, services, address, port)
   }
@@ -429,11 +429,11 @@ object NetworkAddressWithTimestamp
     writeUInt32(input.time.toInt, out)
     writeUInt64(input.services, out)
     input.address match {
-      case _: Inet4Address =>
+      case _: Ipv4Address =>
         writeBytes(hex"00000000000000000000ffff".toArray, out)
-      case _: Inet6Address => ()
+      case _: Ipv6Address => ()
     }
-    writeBytes(input.address.getAddress, out)
+    writeBytes(input.address.toBytes, out)
     writeUInt16(input.port.toInt, out, ByteOrder.BIG_ENDIAN)
   }
 }
@@ -441,7 +441,7 @@ object NetworkAddressWithTimestamp
 case class NetworkAddressWithTimestamp(
     time: Long,
     services: Long,
-    address: InetAddress,
+    address: IpAddress,
     port: Long
 ) extends BtcSerializable[NetworkAddressWithTimestamp] {
   override def serializer: BtcSerializer[NetworkAddressWithTimestamp] =
@@ -453,7 +453,7 @@ object NetworkAddress extends BtcSerializer[NetworkAddress] {
     val services = uint64(in)
     val raw = new Array[Byte](16)
     in.read(raw)
-    val address = InetAddress.getByAddress(raw)
+    val address = IpAddress.fromBytes(raw).get
     val port = uint16(in, ByteOrder.BIG_ENDIAN)
     NetworkAddress(services, address, port)
   }
@@ -465,11 +465,11 @@ object NetworkAddress extends BtcSerializer[NetworkAddress] {
   ): Unit = {
     writeUInt64(input.services, out)
     input.address match {
-      case _: Inet4Address =>
+      case _: Ipv4Address =>
         writeBytes(hex"00000000000000000000ffff".toArray, out)
-      case _: Inet6Address => ()
+      case _: Ipv6Address => ()
     }
-    writeBytes(input.address.getAddress, out)
+    writeBytes(input.address.toBytes, out)
     writeUInt16(
       input.port.toInt,
       out,
@@ -478,7 +478,7 @@ object NetworkAddress extends BtcSerializer[NetworkAddress] {
   }
 }
 
-case class NetworkAddress(services: Long, address: InetAddress, port: Long)
+case class NetworkAddress(services: Long, address: IpAddress, port: Long)
     extends BtcSerializable[NetworkAddress] {
   override def serializer: BtcSerializer[NetworkAddress] = NetworkAddress
 }
