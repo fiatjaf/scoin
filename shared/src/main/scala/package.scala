@@ -1,8 +1,8 @@
 import java.math.BigInteger
 import scala.language.implicitConversions
-
-import scoin.Crypto.PublicKey
 import scodec.bits.ByteVector
+
+import scoin.Crypto.{PublicKey, PrivateKey, randomBytes}
 
 /** Types and utils related to Bitcoin blockchain objects: blocks, scripts,
   * transactions, addresses, PSBTs, keys, signatures, hashes.
@@ -291,4 +291,17 @@ package object scoin {
       chainHash: ByteVector32,
       script: ByteVector
   ): String = computeScriptAddress(chainHash, Script.parse(script))
+
+  /* miscellaneous */
+  def randomBytes32(): ByteVector32 = ByteVector32(randomBytes(32))
+  def randomBytes64(): ByteVector64 = ByteVector64(randomBytes(64))
+  def randomKey(): PrivateKey = PrivateKey(randomBytes32())
+
+  val invalidPubKey: PublicKey =
+    PublicKey.fromBin(ByteVector.fromValidHex("02" * 33), checkValid = false)
+
+  def isPay2PubkeyHash(address: String): Boolean =
+    address.startsWith("1") || address.startsWith("m") || address.startsWith(
+      "n"
+    )
 }

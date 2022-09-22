@@ -4,19 +4,10 @@ import scala.util.{Try, Success, Failure}
 import scodec.bits.{ByteVector, BitVector}
 import scodec.Attempt
 
-import scoin.Crypto.{PublicKey, PrivateKey, randomBytes}
-
 /** Types, utils and wire codecs related to the BOLT specification (the
   * Lightning Network).
   */
 package object ln {
-  def randomBytes32(): ByteVector32 = ByteVector32(randomBytes(32))
-  def randomBytes64(): ByteVector64 = ByteVector64(randomBytes(64))
-  def randomKey(): PrivateKey = PrivateKey(randomBytes32())
-
-  val invalidPubKey: PublicKey =
-    PublicKey.fromBin(ByteVector.fromValidHex("02" * 33), checkValid = false)
-
   def toLongId(
       fundingTxHash: ByteVector32,
       fundingOutputIndex: Int
@@ -41,11 +32,6 @@ package object ln {
       case Attempt.Failure(cause) =>
         throw new RuntimeException(s"serialization error: $cause")
     }
-
-  def isPay2PubkeyHash(address: String): Boolean =
-    address.startsWith("1") || address.startsWith("m") || address.startsWith(
-      "n"
-    )
 
   /** Tests whether the binary data is composed solely of printable ASCII
     * characters (see BOLT 1)
