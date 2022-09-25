@@ -111,8 +111,10 @@ case class BlockHeight(val underlying: Long) extends Ordered[BlockHeight] {
     underlying.compareTo(other.underlying)
   def +(i: Int) = BlockHeight(underlying + i)
   def +(l: Long) = BlockHeight(underlying + l)
+  def +(l: CltvExpiryDelta) = CltvExpiry(underlying + l.toInt)
   def -(i: Int) = BlockHeight(underlying - i)
   def -(l: Long) = BlockHeight(underlying - l)
+  def -(l: CltvExpiryDelta) = CltvExpiry(underlying - l.toInt)
   def -(other: BlockHeight): Long = underlying - other.underlying
   def unary_- = BlockHeight(-underlying)
 
