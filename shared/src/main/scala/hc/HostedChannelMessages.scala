@@ -30,15 +30,15 @@ case class InvokeHostedChannel(
 }
 
 case class InitHostedChannel(
-    maxHtlcValueInFlightMsat: UInt64,
-    htlcMinimumMsat: MilliSatoshi,
+    maxHtlcValueInFlight: MilliSatoshi,
+    htlcMinimum: MilliSatoshi,
     maxAcceptedHtlcs: Int,
-    channelCapacityMsat: MilliSatoshi,
-    initialClientBalanceMsat: MilliSatoshi,
+    channelCapacity: MilliSatoshi,
+    initialClientBalance: MilliSatoshi,
     features: List[Int] = Nil
 ) extends HostedChannelMessage {
   override def toString(): String =
-    s"InitHostedChannel(${channelCapacityMsat})"
+    s"InitHostedChannel(${channelCapacity})"
 }
 
 case class HostedChannelBranding(
@@ -52,8 +52,8 @@ case class LastCrossSignedState(
     refundScriptPubKey: ByteVector,
     initHostedChannel: InitHostedChannel,
     blockDay: Long,
-    localBalanceMsat: MilliSatoshi,
-    remoteBalanceMsat: MilliSatoshi,
+    localBalance: MilliSatoshi,
+    remoteBalance: MilliSatoshi,
     localUpdates: Long,
     remoteUpdates: Long,
     incomingHtlcs: List[UpdateAddHtlc],
@@ -62,17 +62,17 @@ case class LastCrossSignedState(
     localSigOfRemote: ByteVector64
 ) extends HostedChannelMessage {
   override def toString(): String =
-    s"LastCrossSignedState($blockDay, balances=${localBalanceMsat}/${remoteBalanceMsat}, updates=$localUpdates/$remoteUpdates, incomingHtlcs=$incomingHtlcs, outgoingHtlcs=$outgoingHtlcs)"
+    s"LastCrossSignedState($blockDay, balances=${localBalance}/${remoteBalance}, updates=$localUpdates/$remoteUpdates, incomingHtlcs=$incomingHtlcs, outgoingHtlcs=$outgoingHtlcs)"
 
-  def isEmpty: Boolean = initHostedChannel.channelCapacityMsat.toLong == 0
+  def isEmpty: Boolean = initHostedChannel.channelCapacity.toLong == 0
 
   lazy val reverse: LastCrossSignedState =
     copy(
       isHost = !isHost,
       localUpdates = remoteUpdates,
       remoteUpdates = localUpdates,
-      localBalanceMsat = remoteBalanceMsat,
-      remoteBalanceMsat = localBalanceMsat,
+      localBalance = remoteBalance,
+      remoteBalance = localBalance,
       remoteSigOfLocal = localSigOfRemote,
       localSigOfRemote = remoteSigOfLocal,
       incomingHtlcs = outgoingHtlcs,
@@ -96,18 +96,18 @@ case class LastCrossSignedState(
 
     val message = refundScriptPubKey ++
       Protocol.writeUInt64(
-        initHostedChannel.channelCapacityMsat.toLong,
+        initHostedChannel.channelCapacity.toLong,
         ByteOrder.LITTLE_ENDIAN
       ) ++
       Protocol.writeUInt64(
-        initHostedChannel.initialClientBalanceMsat.toLong,
+        initHostedChannel.initialClientBalance.toLong,
         ByteOrder.LITTLE_ENDIAN
       ) ++
       Protocol.writeUInt32(blockDay, ByteOrder.LITTLE_ENDIAN) ++
       Protocol
-        .writeUInt64(localBalanceMsat.toLong, ByteOrder.LITTLE_ENDIAN) ++
+        .writeUInt64(localBalance.toLong, ByteOrder.LITTLE_ENDIAN) ++
       Protocol
-        .writeUInt64(remoteBalanceMsat.toLong, ByteOrder.LITTLE_ENDIAN) ++
+        .writeUInt64(remoteBalance.toLong, ByteOrder.LITTLE_ENDIAN) ++
       Protocol.writeUInt32(localUpdates, ByteOrder.LITTLE_ENDIAN) ++
       Protocol.writeUInt32(remoteUpdates, ByteOrder.LITTLE_ENDIAN) ++
       inPayments.foldLeft(ByteVector.empty) { case (acc, htlc) =>
@@ -136,7 +136,7 @@ case class LastCrossSignedState(
   def stateOverride: StateOverride =
     StateOverride(
       blockDay,
-      localBalanceMsat,
+      localBalance,
       localUpdates,
       remoteUpdates,
       localSigOfRemote
@@ -148,15 +148,15 @@ object LastCrossSignedState {
     isHost = false,
     refundScriptPubKey = ByteVector.empty,
     initHostedChannel = InitHostedChannel(
-      maxHtlcValueInFlightMsat = UInt64(0),
-      htlcMinimumMsat = MilliSatoshi(0),
+      maxHtlcValueInFlight = MilliSatoshi(0),
+      htlcMinimum = MilliSatoshi(0),
       maxAcceptedHtlcs = 0,
-      channelCapacityMsat = MilliSatoshi(0),
-      initialClientBalanceMsat = MilliSatoshi(0)
+      channelCapacity = MilliSatoshi(0),
+      initialClientBalance = MilliSatoshi(0)
     ),
     blockDay = 0,
-    localBalanceMsat = MilliSatoshi(0),
-    remoteBalanceMsat = MilliSatoshi(0),
+    localBalance = MilliSatoshi(0),
+    remoteBalance = MilliSatoshi(0),
     localUpdates = 0,
     remoteUpdates = 0,
     incomingHtlcs = List.empty,
@@ -178,7 +178,7 @@ case class StateUpdate(
 
 case class StateOverride(
     blockDay: Long,
-    localBalanceMsat: MilliSatoshi,
+    localBalance: MilliSatoshi,
     localUpdates: Long,
     remoteUpdates: Long,
     localSigOfRemoteLCSS: ByteVector64
@@ -194,7 +194,7 @@ case class ResizeChannel(
     clientSig: ByteVector64 = ByteVector64.Zeroes
 ) extends HostedChannelMessage {
   def isRemoteResized(remote: LastCrossSignedState): Boolean =
-    newCapacity.toMilliSatoshi == remote.initHostedChannel.channelCapacityMsat
+    newCapacity.toMilliSatoshi == remote.initHostedChannel.channelCapacity
 
   def sign(priv: PrivateKey): ResizeChannel = ResizeChannel(
     clientSig = Crypto.sign(Crypto.sha256(sigMaterial), priv),

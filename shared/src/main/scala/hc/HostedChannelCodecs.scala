@@ -17,11 +17,11 @@ object HostedChannelCodecs {
   ).as[InvokeHostedChannel]
 
   val initHostedChannelCodec = (
-    ("maxHtlcValueInFlightMsat" | uint64) ::
-      ("htlcMinimumMsat" | millisatoshi) ::
+    ("maxHtlcValueInFlight" | millisatoshi) ::
+      ("htlcMinimum" | millisatoshi) ::
       ("maxAcceptedHtlcs" | uint16) ::
-      ("channelCapacityMsat" | millisatoshi) ::
-      ("initialClientBalanceMsat" | millisatoshi) ::
+      ("channelCapacity" | millisatoshi) ::
+      ("initialClientBalance" | millisatoshi) ::
       ("features" | listOfN(uint16, uint16))
   ).as[InitHostedChannel]
 
@@ -36,8 +36,8 @@ object HostedChannelCodecs {
       ("refundScriptPubKey" | varsizebinarydata) ::
       ("initHostedChannel" | lengthDelimited(initHostedChannelCodec)) ::
       ("blockDay" | uint32) ::
-      ("localBalanceMsat" | millisatoshi) ::
-      ("remoteBalanceMsat" | millisatoshi) ::
+      ("localBalance" | millisatoshi) ::
+      ("remoteBalance" | millisatoshi) ::
       ("localUpdates" | uint32) ::
       ("remoteUpdates" | uint32) ::
       ("incomingHtlcs" | listOfN(
@@ -61,7 +61,7 @@ object HostedChannelCodecs {
 
   val stateOverrideCodec = (
     ("blockDay" | uint32) ::
-      ("localBalanceMsat" | millisatoshi) ::
+      ("localBalance" | millisatoshi) ::
       ("localUpdates" | uint32) ::
       ("remoteUpdates" | uint32) ::
       ("localSigOfRemoteLCSS" | bytes64)
