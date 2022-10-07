@@ -60,9 +60,11 @@ object Crypto extends CryptoPlatform {
           Base58.Prefix.SecretKeyTestnet,
           Base58.Prefix.SecretKeySegnet
         ).contains(prefix),
-        "invalid base 58 prefix for a private key"
+        "invalid base58 prefix for a private key"
       )
-      val (`prefix`, data) = Base58Check.decode(value)
+      val (prf, data) = Base58Check.decode(value)
+      require(prf == prefix, "private key base58 prefix doesn't match")
+
       fromBin(data)
     }
   }
