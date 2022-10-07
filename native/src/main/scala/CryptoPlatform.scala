@@ -230,21 +230,40 @@ private[scoin] trait CryptoPlatform {
       data: ByteVector32,
       privateKey: PrivateKey,
       auxrand32: Option[ByteVector32]
-  ): ByteVector64 = {
-    throw new NotImplementedError(
-      "implementation missing - signSchnorr - update sn-secp256k1 library and then come back and implement this"
+  ): ByteVector64 =
+    ByteVector64(
+      ByteVector(
+        privateKey.underlying
+          .signSchnorr(
+            data.bytes.toArray.map(_.toUByte),
+            auxrand32
+              .map(_.bytes.toArray.map(_.toUByte))
+              .getOrElse(Array.empty[UByte])
+          )
+          .toOption
+          .get
+          .map(_.toByte)
+      )
     )
-  }
 
   def verifySignatureSchnorrImpl(
       data: ByteVector32,
       signature: ByteVector64,
       publicKey: XOnlyPublicKey
-  ): Boolean = {
-    throw new NotImplementedError(
-      "implementation missing - verifySignatureSchnorr - update sn-secp256k1 library and then come back and implement this"
-    )
-  }
+  ): Boolean =
+    secp256k1
+      .loadPublicKey(publicKey.value.bytes.toArray.map(_.toUByte))
+      .left
+      .map(msg => new Exception(msg))
+      .toTry
+      .get
+      .xonly
+      .verifySchnorr(
+        data.bytes.toArray.map(_.toUByte),
+        signature.bytes.toArray.map(_.toUByte)
+      )
+      .toOption
+      .getOrElse(false)
 
   /** Recover public keys from a signature and the message that was signed. This
     * method will return 2 public keys, and the signature can be verified with
