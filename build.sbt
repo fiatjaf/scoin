@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion        := "3.1.3"
+ThisBuild / scalaVersion        := "3.2.0"
 ThisBuild / organization        := "com.fiatjaf"
 ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
@@ -6,6 +6,8 @@ ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
 ThisBuild / version             := "0.4.0-SNAPSHOT"
 ThisBuild / tlSonatypeUseLegacyHost := false
+
+Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val root = tlCrossRootProject.aggregate(scoin)
 
@@ -24,7 +26,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     testFrameworks += new TestFramework("utest.runner.Framework")
   )
   .jvmSettings(
-    crossScalaVersions := List("2.13.8", "3.1.3"),
+    crossScalaVersions := List("2.13.8", "3.2.0"),
     libraryDependencies ++= Seq(
       "fr.acinq.secp256k1" % "secp256k1-kmp-jni-jvm" % "0.6.4",
       "org.bouncycastle" % "bcprov-jdk15to18" % "1.68"
@@ -32,7 +34,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   )
   .jsConfigure { _.enablePlugins(NpmDependenciesPlugin) }
   .jsSettings(
-    scalaVersion := "3.1.3",
+    scalaVersion := "3.2.0",
     libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13),
     Compile / npmDependencies ++= Seq(
       "@noble/secp256k1" -> "1.6.3",
@@ -42,7 +44,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
   )
   .nativeSettings(
-    scalaVersion := "3.1.3",
+    scalaVersion := "3.2.0",
     libraryDependencies ++= Seq(
       "com.fiatjaf" %%% "sn-sha256" % "0.4.1",
       "com.fiatjaf" %%% "sn-secp256k1" % "0.3.1",
