@@ -54,7 +54,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
 
 ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
-    List("git clone https://github.com/bitcoin-core/secp256k1 && cd secp256k1 && ./autogen.sh && ./configure --enable-module-schnorrsig --enable-module-recovery && make && sudo make install"),
+    List("git clone https://github.com/bitcoin-core/secp256k1 && cd secp256k1 && ./autogen.sh && ./configure --enable-module-schnorrsig --enable-module-recovery && make && sudo make install && sudo ln -s /usr/local/lib/libsecp256k1* /usr/lib"),
     name = Some("Install libsecp256k1"),
     cond = Some("matrix.project == 'rootNative'"),
   ),
