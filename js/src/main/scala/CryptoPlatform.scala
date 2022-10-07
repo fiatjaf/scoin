@@ -210,11 +210,11 @@ private[scoin] trait CryptoPlatform {
 
   def verifySignatureSchnorrImpl(
       data: ByteVector32,
-      signature: ByteVector,
+      signature: ByteVector64,
       publicKey: XOnlyPublicKey
   ): Boolean = {
     Secp256k1.schnorr.verifySync(
-      signature.toUint8Array,
+      signature.bytes.toUint8Array,
       data.toUint8Array,
       publicKey.value.toUint8Array
     )

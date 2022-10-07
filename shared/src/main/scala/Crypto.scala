@@ -484,7 +484,7 @@ object Crypto extends CryptoPlatform {
     */
   def verifySignatureSchnorr(
       data: ByteVector32,
-      signature: ByteVector,
+      signature: ByteVector64,
       publicKey: XOnlyPublicKey
   ): Boolean =
     verifySignatureSchnorrImpl(data, signature, publicKey)

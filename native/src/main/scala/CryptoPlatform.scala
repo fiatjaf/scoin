@@ -238,7 +238,7 @@ private[scoin] trait CryptoPlatform {
 
   def verifySignatureSchnorrImpl(
       data: ByteVector32,
-      signature: ByteVector,
+      signature: ByteVector64,
       publicKey: XOnlyPublicKey
   ): Boolean = {
     throw new NotImplementedError(
