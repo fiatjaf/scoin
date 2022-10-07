@@ -101,16 +101,12 @@ case class Psbt(
           derivationPaths = input.derivationPaths ++ derivationPaths
         )
       case _: PartiallySignedNonWitnessInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update segwit input: it has already been updated with non-segwit data"
-          )
+        throw new IllegalArgumentException(
+          "cannot update segwit input: it has already been updated with non-segwit data"
         )
       case _: FinalizedInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update segwit input: it has already been finalized"
-          )
+        throw new IllegalArgumentException(
+          "cannot update segwit input: it has already been finalized"
         )
     }
     this.copy(inputs = inputs.updated(inputIndex, updatedInput))
@@ -179,16 +175,12 @@ case class Psbt(
           derivationPaths = input.derivationPaths ++ derivationPaths
         )
       case _: PartiallySignedNonWitnessInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update segwit input: it has already been updated with non-segwit data"
-          )
+        throw new IllegalArgumentException(
+          "cannot update segwit input: it has already been updated with non-segwit data"
         )
       case _: FinalizedInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update segwit input: it has already been finalized"
-          )
+        throw new IllegalArgumentException(
+          "cannot update segwit input: it has already been finalized"
         )
     }
     this.copy(inputs = inputs.updated(inputIndex, updatedInput))
@@ -251,16 +243,12 @@ case class Psbt(
           derivationPaths = input.derivationPaths ++ derivationPaths
         )
       case _: PartiallySignedWitnessInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update non-segwit input: it has already been updated with segwit data"
-          )
+        throw new IllegalArgumentException(
+          "cannot update non-segwit input: it has already been updated with segwit data"
         )
       case _: FinalizedInput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update non-segwit input: it has already been finalized"
-          )
+        throw new IllegalArgumentException(
+          "cannot update non-segwit input: it has already been finalized"
         )
     }
     this.copy(inputs = inputs.updated(inputIndex, updatedInput))
@@ -361,10 +349,8 @@ case class Psbt(
     )
     val updatedOutput = outputs(outputIndex) match {
       case _: NonWitnessOutput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update segwit output: it has already been updated with non-segwit data"
-          )
+        throw new IllegalArgumentException(
+          "cannot update segwit output: it has already been updated with non-segwit data"
         )
       case output: WitnessOutput =>
         output.copy(
@@ -410,10 +396,8 @@ case class Psbt(
           derivationPaths = derivationPaths ++ output.derivationPaths
         )
       case _: WitnessOutput =>
-        return Failure(
-          new IllegalArgumentException(
-            "cannot update non-segwit output: it has already been updated with segwit data"
-          )
+        throw new IllegalArgumentException(
+          "cannot update non-segwit output: it has already been updated with segwit data"
         )
       case output: UnspecifiedOutput =>
         NonWitnessOutput(
@@ -464,14 +448,15 @@ case class Psbt(
       "input index must exist in the input tx"
     )
     val input = inputs(inputIndex)
-    Psbt.sign(priv, inputIndex, input, global) match {
-      case Success((signedInput, sig)) =>
+    Psbt
+      .sign(priv, inputIndex, input, global)
+      .map { case (signedInput, sig) =>
         SignPsbtResult(
           this.copy(inputs = inputs.updated(inputIndex, signedInput)),
           sig
         )
-      case Failure(ex) => return Failure(ex)
-    }
+      }
+      .get
   }
 
   /** Implements the PSBT finalizer role: finalizes a given segwit input. This
@@ -644,7 +629,7 @@ case class Psbt(
     * @return
     *   a fully signed, ready-to-broadcast transaction.
     */
-  def extract(): Try[Transaction] = {
+  def extract(): Try[Transaction] = Try {
     val (finalTxsIn, utxos) = global.tx.txIn
       .zip(inputs)
       .map { case (txIn, input) =>
@@ -656,39 +641,34 @@ case class Psbt(
         val utxo = input match {
           case input: FinalizedNonWitnessInput
               if input.inputTx.txid != txIn.outPoint.txid =>
-            return Failure(
-              new IllegalArgumentException(
-                "cannot extract transaction: non-witness utxo does not match unsigned tx input"
-              )
+            throw new IllegalArgumentException(
+              "cannot extract transaction: non-witness utxo does not match unsigned tx input"
             )
           case input: FinalizedNonWitnessInput
               if input.inputTx.txOut.length <= txIn.outPoint.index =>
-            return Failure(
-              new IllegalArgumentException(
-                "cannot extract transaction: non-witness utxo index out of bounds"
-              )
+            throw new IllegalArgumentException(
+              "cannot extract transaction: non-witness utxo index out of bounds"
             )
           case input: FinalizedNonWitnessInput =>
             input.inputTx.txOut(txIn.outPoint.index.toInt)
           case input: FinalizedWitnessInput => input.txOut
           case _ =>
-            return Failure(
-              new IllegalArgumentException(
-                "cannot extract transaction: some inputs are not finalized or are missing utxo data"
-              )
+            throw new IllegalArgumentException(
+              "cannot extract transaction: some inputs are not finalized or are missing utxo data"
             )
         }
         (finalTxIn, txIn.outPoint -> utxo)
       }
       .unzip
     val finalTx = global.tx.copy(txIn = finalTxsIn)
-    Try {
-      Transaction.correctlySpends(
-        finalTx,
-        utxos.toMap,
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
-      )
-    }.map(_ => finalTx)
+
+    Transaction.correctlySpends(
+      finalTx,
+      utxos.toMap,
+      ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+    )
+
+    finalTx
   }
 
   /** Compute the fees paid by the PSBT. Note that if some inputs have not been

@@ -184,56 +184,60 @@ object Crypto extends CryptoPlatform {
     //   signature)
 
     // Minimum and maximum size constraints.
-    if (sig.size < 9) return false
-    if (sig.size > 73) return false
+    if (sig.size < 9) false
+    else if (sig.size > 73) false
 
     // A signature is of type 0x30 (compound).
-    if (sig(0) != 0x30.toByte) return false
+    else if (sig(0) != 0x30.toByte) false
 
     // Make sure the length covers the entire signature.
-    if (sig(1) != sig.size - 3) return false
+    else if (sig(1) != sig.size - 3) false
+    else {
+      // Extract the length of the R element.
+      val lenR = sig(3)
 
-    // Extract the length of the R element.
-    val lenR = sig(3)
+      // Make sure the length of the S element is still inside the signature.
+      if (5 + lenR >= sig.size) false
+      else {
+        // Extract the length of the S element.
+        val lenS = sig(5 + lenR)
 
-    // Make sure the length of the S element is still inside the signature.
-    if (5 + lenR >= sig.size) return false
+        // Verify that the length of the signature matches the sum of the length
+        // of the elements.
+        if (lenR + lenS + 7 != sig.size) false
 
-    // Extract the length of the S element.
-    val lenS = sig(5 + lenR)
+        // Check whether the R element is an integer.
+        else if (sig(2) != 0x02) false
 
-    // Verify that the length of the signature matches the sum of the length
-    // of the elements.
-    if (lenR + lenS + 7 != sig.size) return false
+        // Zero-length integers are not allowed for R.
+        else if (lenR == 0) false
 
-    // Check whether the R element is an integer.
-    if (sig(2) != 0x02) return false
+        // Negative numbers are not allowed for R.
+        else if ((sig(4) & 0x80.toByte) != 0) false
 
-    // Zero-length integers are not allowed for R.
-    if (lenR == 0) return false
+        // Null bytes at the start of R are not allowed, unless R would
+        // otherwise be interpreted as a negative number.
+        else if (lenR > 1 && (sig(4) == 0x00) && (sig(5) & 0x80) == 0) false
 
-    // Negative numbers are not allowed for R.
-    if ((sig(4) & 0x80.toByte) != 0) return false
+        // Check whether the S element is an integer.
+        else if (sig(lenR + 4) != 0x02.toByte) false
 
-    // Null bytes at the start of R are not allowed, unless R would
-    // otherwise be interpreted as a negative number.
-    if (lenR > 1 && (sig(4) == 0x00) && (sig(5) & 0x80) == 0) return false
+        // Zero-length integers are not allowed for S.
+        else if (lenS == 0) false
 
-    // Check whether the S element is an integer.
-    if (sig(lenR + 4) != 0x02.toByte) return false
+        // Negative numbers are not allowed for S.
+        else if ((sig(lenR + 6) & 0x80) != 0) false
 
-    // Zero-length integers are not allowed for S.
-    if (lenS == 0) return false
-
-    // Negative numbers are not allowed for S.
-    if ((sig(lenR + 6) & 0x80) != 0) return false
-
-    // Null bytes at the start of S are not allowed, unless S would otherwise be
-    // interpreted as a negative number.
-    if (lenS > 1 && (sig(lenR + 6) == 0x00) && (sig(lenR + 7) & 0x80) == 0)
-      return false
-
-    return true
+        // Null bytes at the start of S are not allowed, unless S would otherwise be
+        // interpreted as a negative number.
+        else if (
+          lenS > 1 && (sig(lenR + 6) == 0x00) && (sig(lenR + 7) & 0x80) == 0
+        )
+          false
+        else
+          true
+      }
+    }
   }
 
   def isLowDERSignature(sig: ByteVector): Boolean = isDERSignature(sig) && {

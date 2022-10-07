@@ -388,15 +388,12 @@ object Script {
         (tx.lockTime < Transaction.LOCKTIME_THRESHOLD && lockTime < Transaction.LOCKTIME_THRESHOLD) ||
           (tx.lockTime >= Transaction.LOCKTIME_THRESHOLD && lockTime >= Transaction.LOCKTIME_THRESHOLD)
       )
-    ) {
-      return false
-    }
-
+    )
+      false
     // Now that we know we're comparing apples-to-apples, the
     // comparison is a simple numeric one.
-    if (lockTime > tx.lockTime)
-      return false
-
+    else if (lockTime > tx.lockTime)
+      false
     // Finally the nLockTime feature can be disabled and thus
     // CHECKLOCKTIMEVERIFY bypassed if every txin has been
     // finalized by setting nSequence to maxint. The
@@ -407,10 +404,10 @@ object Script {
     // prevent this condition. Alternatively we could test all
     // inputs, but testing just this input minimizes the data
     // required to prove correct CHECKLOCKTIMEVERIFY execution.
-    if (tx.txIn(inputIndex).isFinal)
-      return false
-
-    true
+    else if (tx.txIn(inputIndex).isFinal)
+      false
+    else
+      true
   }
 
   def checkSequence(
@@ -424,45 +421,43 @@ object Script {
 
     // Fail if the transaction's version number is not set high
     // enough to trigger BIP 68 rules.
-    if (tx.version < 2)
-      return false
+    if (tx.version < 2) false
 
     // Sequence numbers with their most significant bit set are not
     // consensus constrained. Testing that the transaction's sequence
     // number do not have this bit set prevents using this property
     // to get around a CHECKSEQUENCEVERIFY check.
-    if ((txToSequence & TxIn.SEQUENCE_LOCKTIME_DISABLE_FLAG) != 0)
-      return false
+    else if ((txToSequence & TxIn.SEQUENCE_LOCKTIME_DISABLE_FLAG) != 0) false
+    else {
+      // Mask off any bits that do not have consensus-enforced meaning
+      // before doing the integer comparisons
+      val nLockTimeMask =
+        TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG | TxIn.SEQUENCE_LOCKTIME_MASK
+      val txToSequenceMasked = txToSequence & nLockTimeMask
+      val nSequenceMasked = sequence & nLockTimeMask
 
-    // Mask off any bits that do not have consensus-enforced meaning
-    // before doing the integer comparisons
-    val nLockTimeMask =
-      TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG | TxIn.SEQUENCE_LOCKTIME_MASK
-    val txToSequenceMasked = txToSequence & nLockTimeMask
-    val nSequenceMasked = sequence & nLockTimeMask
-
-    // There are two kinds of nSequence: lock-by-blockheight
-    // and lock-by-blocktime, distinguished by whether
-    // nSequenceMasked < CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG.
-    //
-    // We want to compare apples to apples, so fail the script
-    // unless the type of nSequenceMasked being tested is the same as
-    // the nSequenceMasked in the transaction.
-    if (
-      !(
-        (txToSequenceMasked < TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG && nSequenceMasked < TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG) ||
-          (txToSequenceMasked >= TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG && nSequenceMasked >= TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG)
+      // There are two kinds of nSequence: lock-by-blockheight
+      // and lock-by-blocktime, distinguished by whether
+      // nSequenceMasked < CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG.
+      //
+      // We want to compare apples to apples, so fail the script
+      // unless the type of nSequenceMasked being tested is the same as
+      // the nSequenceMasked in the transaction.
+      if (
+        !(
+          (txToSequenceMasked < TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG && nSequenceMasked < TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG) ||
+            (txToSequenceMasked >= TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG && nSequenceMasked >= TxIn.SEQUENCE_LOCKTIME_TYPE_FLAG)
+        )
       )
-    ) {
-      return false
+        false
+
+      // Now that we know we're comparing apples-to-apples, the
+      // comparison is a simple numeric one.
+      else if (nSequenceMasked > txToSequenceMasked)
+        false
+      else
+        true
     }
-
-    // Now that we know we're comparing apples-to-apples, the
-    // comparison is a simple numeric one.
-    if (nSequenceMasked > txToSequenceMasked)
-      return false
-
-    true
   }
 
   /** Execution context of a tx script. A script is always executed in the
@@ -1664,51 +1659,59 @@ object Script {
         witnessVersion: Long,
         program: ByteVector
     ): Unit = {
-      val (stack: Seq[ByteVector], scriptPubKey) = witnessVersion match {
-        case 0 if program.length == 20 =>
-          // P2WPKH, program is simply the pubkey hash
-          require(
-            witness.stack.length == 2,
-            "Invalid witness program, should have 2 items"
-          )
-          (
-            witness.stack,
-            OP_DUP :: OP_HASH160 :: OP_PUSHDATA(
-              program
-            ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil
-          )
-        case 0 if program.length == 32 =>
-          // P2WPSH, program is the hash of the script, and witness is the stack + the script
-          val check = Crypto.sha256(witness.stack.last)
-          require(check.bytes == program, "witness program mismatch")
-          (witness.stack.dropRight(1), Script.parse(witness.stack.last))
-        case 0 =>
-          throw new IllegalArgumentException(
-            s"Invalid witness program length: ${program.length}"
-          )
-        case _
-            if (scriptFlag & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM) != 0 =>
-          throw new IllegalArgumentException(
-            s"Invalid witness version: $witnessVersion"
-          )
-        case _ =>
-          // Higher version witness scripts return true for future softfork compatibility
-          return
-      }
-      stack.foreach(item =>
-        require(
-          item.length <= MaxScriptElementSize,
-          "item is bigger than maximum push size"
-        )
-      )
+      val stackScript: Option[(Seq[ByteVector], List[ScriptElt])] =
+        witnessVersion match {
+          case 0 if program.length == 20 =>
+            // P2WPKH, program is simply the pubkey hash
+            require(
+              witness.stack.length == 2,
+              "Invalid witness program, should have 2 items"
+            )
+            Some(
+              (
+                witness.stack,
+                OP_DUP :: OP_HASH160 :: OP_PUSHDATA(
+                  program
+                ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil
+              )
+            )
+          case 0 if program.length == 32 =>
+            // P2WPSH, program is the hash of the script, and witness is the stack + the script
+            val check = Crypto.sha256(witness.stack.last)
+            require(check.bytes == program, "witness program mismatch")
+            Some((witness.stack.dropRight(1), Script.parse(witness.stack.last)))
+          case 0 =>
+            throw new IllegalArgumentException(
+              s"Invalid witness program length: ${program.length}"
+            )
+          case _
+              if (scriptFlag & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM) != 0 =>
+            throw new IllegalArgumentException(
+              s"Invalid witness version: $witnessVersion"
+            )
+          case _ =>
+            // Higher version witness scripts return true for future softfork compatibility
+            None
+        }
 
-      val stack1 = run(
-        scriptPubKey,
-        stack.toList.reverse,
-        SigVersion.SIGVERSION_WITNESS_V0
-      )
-      require(stack1.length == 1)
-      require(castToBoolean(stack1.head))
+      stackScript match {
+        case None => // valid
+        case Some((stack, scriptPubKey)) =>
+          stack.foreach(item =>
+            require(
+              item.length <= MaxScriptElementSize,
+              "item is bigger than maximum push size"
+            )
+          )
+
+          val stack1 = run(
+            scriptPubKey,
+            stack.toList.reverse,
+            SigVersion.SIGVERSION_WITNESS_V0
+          )
+          require(stack1.length == 1)
+          require(castToBoolean(stack1.head))
+      }
     }
 
     def verifyScripts(

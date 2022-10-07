@@ -114,11 +114,13 @@ case class Features[T <: Feature](
   }
 
   private def toByteVectorFromIndex(indexes: Set[Int]): ByteVector = {
-    if (indexes.isEmpty) return ByteVector.empty
-    // When converting from BitVector to ByteVector, scodec pads right instead of left, so we make sure we pad to bytes *before* setting feature bits.
-    var buf = BitVector.fill(indexes.max + 1)(high = false).bytes.bits
-    indexes.foreach { i => buf = buf.set(i) }
-    buf.reverse.bytes
+    if (indexes.isEmpty) ByteVector.empty
+    else {
+      // When converting from BitVector to ByteVector, scodec pads right instead of left, so we make sure we pad to bytes *before* setting feature bits.
+      var buf = BitVector.fill(indexes.max + 1)(high = false).bytes.bits
+      indexes.foreach { i => buf = buf.set(i) }
+      buf.reverse.bytes
+    }
   }
 
   override def toString: String = {
