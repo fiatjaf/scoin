@@ -75,7 +75,10 @@ object CommonCodecs {
 
   val blockHeight: Codec[BlockHeight] =
     uint32.xmapc(l => BlockHeight(l))(_.toLong)
-  val cltvExpiry: Codec[CltvExpiry] = blockHeight.as[CltvExpiry]
+
+  val cltvExpiry: Codec[CltvExpiry] =
+    uint32.xmapc(l => CltvExpiry(l))(_.toLong)
+
   val cltvExpiryDelta: Codec[CltvExpiryDelta] =
     uint16.xmapc(CltvExpiryDelta(_))(_.toInt)
 
