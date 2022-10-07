@@ -84,7 +84,15 @@ object BlockHeader extends BtcSerializer[BlockHeader] {
     if (actualTimespan < targetTimespan / 4) actualTimespan = targetTimespan / 4
     if (actualTimespan > targetTimespan * 4) actualTimespan = targetTimespan * 4
 
-    var (target, false, false) = decodeCompact(lastHeader.bits)
+    var (target, isNegative, overflow) = decodeCompact(lastHeader.bits)
+    require(
+      isNegative == false,
+      "lastHeader is negative when calculating next work"
+    )
+    require(
+      overflow == false,
+      "overflow is negative when calculating next work"
+    )
     target = target.multiply(BigInteger.valueOf(actualTimespan))
     target = target.divide(BigInteger.valueOf(targetTimespan))
 
