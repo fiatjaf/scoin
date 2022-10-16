@@ -1355,7 +1355,7 @@ object Psbt {
         val (known, unknown) = entries.partition(entry =>
           entry.key.headOption.exists(keyTypes.contains)
         )
-        val version_opt: Try[Long] = known
+        val versionOpt: Try[Long] = known
           .find(_.key.head == 0xfb)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1382,7 +1382,7 @@ object Psbt {
               }
           }
           .getOrElse(Success(0))
-        val tx_opt: Try[Transaction] = known
+        val txOpt: Try[Transaction] = known
           .find(_.key.head == 0x00)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1415,7 +1415,7 @@ object Psbt {
               new IllegalArgumentException("psbt must contain a transaction")
             )
           )
-        val xpubs_opt: Try[Seq[ExtendedPublicKeyWithMaster]] =
+        val xpubsOpt: Try[Seq[ExtendedPublicKeyWithMaster]] =
           trySequence(known.filter(_.key.head == 0x01).map {
             case DataEntry(key, _) if key.tail.length != 78 =>
               Failure(
@@ -1472,9 +1472,9 @@ object Psbt {
               }
           })
         for {
-          version <- version_opt
-          tx <- tx_opt
-          xpubs <- xpubs_opt
+          version <- versionOpt
+          tx <- txOpt
+          xpubs <- xpubsOpt
         } yield Global(version, tx, xpubs, unknown)
       })
 
@@ -1492,7 +1492,7 @@ object Psbt {
         val (known, unknown) = entries.partition(entry =>
           entry.key.headOption.exists(keyTypes.contains)
         )
-        val nonWitnessUtxo_opt: Try[Option[Transaction]] = known
+        val nonWitnessUtxoOpt: Try[Option[Transaction]] = known
           .find(_.key.head == 0x00)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1516,7 +1516,7 @@ object Psbt {
               }
           }
           .getOrElse(Success(None))
-        val witnessUtxo_opt: Try[Option[TxOut]] = known
+        val witnessUtxoOpt: Try[Option[TxOut]] = known
           .find(_.key.head == 0x01)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1528,12 +1528,12 @@ object Psbt {
             case DataEntry(_, value) => Success(Some(TxOut.read(value.toArray)))
           }
           .getOrElse(Success(None))
-        val partialSigs_opt: Try[Map[PublicKey, ByteVector]] = trySequence(
+        val partialSigsOpt: Try[Map[PublicKey, ByteVector]] = trySequence(
           known.filter(_.key.head == 0x02).map { case DataEntry(key, value) =>
             Success(PublicKey(key.tail, checkValid = true), value)
           }
         ).map(_.toMap)
-        val sighashType_opt: Try[Option[Int]] = known
+        val sighashTypeOpt: Try[Option[Int]] = known
           .find(_.key.head == 0x03)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1554,7 +1554,7 @@ object Psbt {
               )
           }
           .getOrElse(Success(None))
-        val redeemScript_opt: Try[Option[Seq[ScriptElt]]] = known
+        val redeemScriptOpt: Try[Option[Seq[ScriptElt]]] = known
           .find(_.key.head == 0x04)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1566,7 +1566,7 @@ object Psbt {
             case DataEntry(_, value) => Success(Some(Script.parse(value)))
           }
           .getOrElse(Success(None))
-        val witnessScript_opt: Try[Option[Seq[ScriptElt]]] = known
+        val witnessScriptOpt: Try[Option[Seq[ScriptElt]]] = known
           .find(_.key.head == 0x05)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1578,7 +1578,7 @@ object Psbt {
             case DataEntry(_, value) => Success(Some(Script.parse(value)))
           }
           .getOrElse(Success(None))
-        val derivationPaths_opt: Try[Map[PublicKey, KeyPathWithMaster]] =
+        val derivationPathsOpt: Try[Map[PublicKey, KeyPathWithMaster]] =
           trySequence(known.filter(_.key.head == 0x06).map {
             case DataEntry(_, value)
                 if value.length < 4 || value.length % 4 != 0 =>
@@ -1605,7 +1605,7 @@ object Psbt {
                 KeyPathWithMaster(masterKeyFingerprint, derivationPath)
               )
           }).map(_.toMap)
-        val scriptSig_opt: Try[Option[Seq[ScriptElt]]] = known
+        val scriptSigOpt: Try[Option[Seq[ScriptElt]]] = known
           .find(_.key.head == 0x07)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1617,7 +1617,7 @@ object Psbt {
             case DataEntry(_, value) => Success(Some(Script.parse(value)))
           }
           .getOrElse(Success(None))
-        val scriptWitness_opt: Try[Option[ScriptWitness]] = known
+        val scriptWitnessOpt: Try[Option[ScriptWitness]] = known
           .find(_.key.head == 0x08)
           .map {
             case DataEntry(key, _) if key.length != 1 =>
@@ -1682,15 +1682,15 @@ object Psbt {
             case DataEntry(_, value) => Success(value)
           }).map(_.toSet)
         for {
-          nonWitnessUtxo <- nonWitnessUtxo_opt
-          witnessUtxo <- witnessUtxo_opt
-          sighashType <- sighashType_opt
-          partialSigs <- partialSigs_opt
-          derivationPaths <- derivationPaths_opt
-          redeemScript <- redeemScript_opt
-          witnessScript <- witnessScript_opt
-          scriptSig <- scriptSig_opt
-          scriptWitness <- scriptWitness_opt
+          nonWitnessUtxo <- nonWitnessUtxoOpt
+          witnessUtxo <- witnessUtxoOpt
+          sighashType <- sighashTypeOpt
+          partialSigs <- partialSigsOpt
+          derivationPaths <- derivationPathsOpt
+          redeemScript <- redeemScriptOpt
+          witnessScript <- witnessScriptOpt
+          scriptSig <- scriptSigOpt
+          scriptWitness <- scriptWitnessOpt
           ripemd160 <- ripemd160Preimages
           sha256 <- sha256Preimages
           hash160 <- hash160Preimages
@@ -1834,7 +1834,7 @@ object Psbt {
       val (known, unknown) = entries.partition(entry =>
         entry.key.headOption.exists(keyTypes.contains)
       )
-      val redeemScript_opt: Try[Option[Seq[ScriptElt]]] = known
+      val redeemScriptOpt: Try[Option[Seq[ScriptElt]]] = known
         .find(_.key.head == 0x00)
         .map {
           case DataEntry(key, _) if key.length != 1 =>
@@ -1846,7 +1846,7 @@ object Psbt {
           case DataEntry(_, value) => Success(Some(Script.parse(value)))
         }
         .getOrElse(Success(None))
-      val witnessScript_opt: Try[Option[Seq[ScriptElt]]] = known
+      val witnessScriptOpt: Try[Option[Seq[ScriptElt]]] = known
         .find(_.key.head == 0x01)
         .map {
           case DataEntry(key, _) if key.length != 1 =>
@@ -1858,7 +1858,7 @@ object Psbt {
           case DataEntry(_, value) => Success(Some(Script.parse(value)))
         }
         .getOrElse(Success(None))
-      val derivationPaths_opt: Try[Map[PublicKey, KeyPathWithMaster]] =
+      val derivationPathsOpt: Try[Map[PublicKey, KeyPathWithMaster]] =
         trySequence(known.filter(_.key.head == 0x02).map {
           case DataEntry(_, value)
               if value.length < 4 || value.length % 4 != 0 =>
@@ -1886,9 +1886,9 @@ object Psbt {
             )
         }).map(_.toMap)
       for {
-        redeemScript <- redeemScript_opt
-        witnessScript <- witnessScript_opt
-        derivationPaths <- derivationPaths_opt
+        redeemScript <- redeemScriptOpt
+        witnessScript <- witnessScriptOpt
+        derivationPaths <- derivationPathsOpt
       } yield createOutput(
         redeemScript,
         witnessScript,

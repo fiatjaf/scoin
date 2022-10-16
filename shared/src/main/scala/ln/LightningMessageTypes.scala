@@ -29,7 +29,7 @@ case class Init(
 ) extends SetupMessage {
   val networks =
     tlvStream.get[InitTlv.Networks].map(_.chainHashes).getOrElse(Nil)
-  val remoteAddress_opt = tlvStream.get[InitTlv.RemoteAddress].map(_.address)
+  val remoteAddressOpt = tlvStream.get[InitTlv.RemoteAddress].map(_.address)
 }
 
 case class Warning(
@@ -113,7 +113,7 @@ case class OpenChannel(
 ) extends ChannelMessage
     with HasTemporaryChannelId
     with HasChainHash {
-  val upfrontShutdownScript_opt: Option[ByteVector] =
+  val upfrontShutdownScriptOpt: Option[ByteVector] =
     tlvStream.get[ChannelTlv.UpfrontShutdownScriptTlv].map(_.script)
 }
 
@@ -139,7 +139,7 @@ case class AcceptChannel(
     tlvStream: TlvStream[AcceptChannelTlv] = TlvStream.empty
 ) extends ChannelMessage
     with HasTemporaryChannelId {
-  val upfrontShutdownScript_opt: Option[ByteVector] =
+  val upfrontShutdownScriptOpt: Option[ByteVector] =
     tlvStream.get[ChannelTlv.UpfrontShutdownScriptTlv].map(_.script)
 }
 
@@ -180,7 +180,7 @@ case class ClosingSigned(
     tlvStream: TlvStream[ClosingSignedTlv] = TlvStream.empty
 ) extends ChannelMessage
     with HasChannelId {
-  val feeRange_opt = tlvStream.get[ClosingSignedTlv.FeeRange]
+  val feeRangeOpt = tlvStream.get[ClosingSignedTlv.FeeRange]
 }
 
 case class UpdateAddHtlc(
@@ -194,7 +194,7 @@ case class UpdateAddHtlc(
 ) extends HtlcMessage
     with UpdateMessage
     with HasChannelId {
-  val blinding_opt: Option[PublicKey] =
+  val blindingOpt: Option[PublicKey] =
     tlvStream.get[UpdateAddHtlcTlv.BlindingPoint].map(_.publicKey)
 }
 
@@ -399,7 +399,7 @@ case class QueryShortChannelIds(
     tlvStream: TlvStream[QueryShortChannelIdsTlv] = TlvStream.empty
 ) extends RoutingMessage
     with HasChainHash {
-  val queryFlags_opt: Option[QueryShortChannelIdsTlv.EncodedQueryFlags] =
+  val queryFlagsOpt: Option[QueryShortChannelIdsTlv.EncodedQueryFlags] =
     tlvStream.get[QueryShortChannelIdsTlv.EncodedQueryFlags]
 }
 
@@ -416,7 +416,7 @@ case class QueryChannelRange(
     numberOfBlocks: Long,
     tlvStream: TlvStream[QueryChannelRangeTlv] = TlvStream.empty
 ) extends RoutingMessage {
-  val queryFlags_opt: Option[QueryChannelRangeTlv.QueryFlags] =
+  val queryFlagsOpt: Option[QueryChannelRangeTlv.QueryFlags] =
     tlvStream.get[QueryChannelRangeTlv.QueryFlags]
 }
 
@@ -428,9 +428,9 @@ case class ReplyChannelRange(
     shortChannelIds: EncodedShortChannelIds,
     tlvStream: TlvStream[ReplyChannelRangeTlv] = TlvStream.empty
 ) extends RoutingMessage {
-  val timestamps_opt: Option[ReplyChannelRangeTlv.EncodedTimestamps] =
+  val timestampsOpt: Option[ReplyChannelRangeTlv.EncodedTimestamps] =
     tlvStream.get[ReplyChannelRangeTlv.EncodedTimestamps]
-  val checksums_opt: Option[ReplyChannelRangeTlv.EncodedChecksums] =
+  val checksumsOpt: Option[ReplyChannelRangeTlv.EncodedChecksums] =
     tlvStream.get[ReplyChannelRangeTlv.EncodedChecksums]
 }
 

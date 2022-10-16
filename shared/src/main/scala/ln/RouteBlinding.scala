@@ -88,14 +88,14 @@ object BlindedRouteData {
   case class MessageRelayData(records: TlvStream[RouteBlindingEncryptedDataTlv])
       extends MessageData {
     val nextNodeId: PublicKey = records.get[OutgoingNodeId].get.nodeId
-    val nextBlinding_opt: Option[PublicKey] =
+    val nextBlindingOpt: Option[PublicKey] =
       records.get[NextBlinding].map(_.blinding)
   }
 
   case class MessageRecipientData(
       records: TlvStream[RouteBlindingEncryptedDataTlv]
   ) extends MessageData {
-    val pathId_opt: Option[ByteVector] = records.get[PathId].map(_.data)
+    val pathIdOpt: Option[ByteVector] = records.get[PathId].map(_.data)
   }
 
   case class PaymentRelayData(records: TlvStream[RouteBlindingEncryptedDataTlv])
@@ -119,7 +119,7 @@ object BlindedRouteData {
   case class PaymentRecipientData(
       records: TlvStream[RouteBlindingEncryptedDataTlv]
   ) extends PaymentData {
-    val pathId_opt: Option[ByteVector] = records.get[PathId].map(_.data)
+    val pathIdOpt: Option[ByteVector] = records.get[PathId].map(_.data)
   }
 
 }

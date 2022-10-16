@@ -271,7 +271,7 @@ object PaymentOnion {
   case class BlindedChannelRelayPayload(
       records: TlvStream[OnionPaymentPayloadTlv]
   ) extends ChannelRelayPayload {
-    val blinding_opt: Option[PublicKey] =
+    val blindingOpt: Option[PublicKey] =
       records.get[BlindingPoint].map(_.publicKey)
     val encryptedRecipientData: ByteVector =
       records.get[EncryptedRecipientData].get.data

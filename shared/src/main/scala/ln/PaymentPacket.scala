@@ -27,7 +27,7 @@ object IncomingPaymentPacket {
       add: UpdateAddHtlc,
       payload: PaymentOnion.ChannelRelayData,
       nextPacket: OnionRoutingPacket,
-      nextBlindingKey_opt: Option[PublicKey]
+      nextBlindingKeyOpt: Option[PublicKey]
   ) extends RelayPacket {
     val relayFeeMsat: MilliSatoshi = add.amountMsat - payload.amountToForward
     val expiryDelta: CltvExpiryDelta = add.cltvExpiry - payload.outgoingCltv
@@ -89,7 +89,7 @@ object IncomingPaymentPacket {
       privateKey: PrivateKey
   ): Either[FailureMessage, IncomingPaymentPacket] = {
     // We first derive the decryption key used to peel the onion.
-    val outerOnionDecryptionKey = add.blinding_opt match {
+    val outerOnionDecryptionKey = add.blindingOpt match {
       case Some(blinding) =>
         Sphinx.RouteBlinding.derivePrivateKey(privateKey, blinding)
       case None => privateKey
@@ -106,10 +106,10 @@ object IncomingPaymentPacket {
           ) =>
         payload match {
           case payload: PaymentOnion.BlindedChannelRelayPayload =>
-            if (add.blinding_opt.isDefined && payload.blinding_opt.isDefined) {
+            if (add.blindingOpt.isDefined && payload.blindingOpt.isDefined) {
               Left(InvalidOnionPayload(UInt64(12), 0))
             } else {
-              add.blinding_opt.orElse(payload.blinding_opt) match {
+              add.blindingOpt.orElse(payload.blindingOpt) match {
                 case Some(blinding) =>
                   RouteBlindingEncryptedDataCodecs.decode(
                     privateKey,
@@ -159,7 +159,7 @@ object IncomingPaymentPacket {
                   Left(InvalidOnionPayload(UInt64(12), 0))
               }
             }
-          case _ if add.blinding_opt.isDefined =>
+          case _ if add.blindingOpt.isDefined =>
             Left(InvalidOnionPayload(UInt64(12), 0))
           // NB: we don't validate the ChannelRelayPacket here because its fees and cltv depend on what channel we'll choose to use.
           case payload: PaymentOnion.ChannelRelayTlvPayload =>

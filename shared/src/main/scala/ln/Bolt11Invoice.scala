@@ -16,7 +16,7 @@ import scoin.ln._
   *
   * @param prefix
   *   currency prefix; lnbc for bitcoin, lntb for bitcoin testnet
-  * @param amount_opt
+  * @param amountOpt
   *   amount to pay (empty string means no amount is specified)
   * @param createdAt
   *   invoice timestamp (UNIX format)
@@ -30,7 +30,7 @@ import scoin.ln._
   */
 case class Bolt11Invoice(
     prefix: String,
-    amount_opt: Option[MilliSatoshi],
+    amountOpt: Option[MilliSatoshi],
     createdAt: TimestampSecond,
     nodeId: PublicKey,
     tags: List[Bolt11Invoice.TaggedField],
@@ -38,7 +38,7 @@ case class Bolt11Invoice(
 ) {
   import scoin.ln.Bolt11Invoice._
 
-  amount_opt.foreach(a => require(a > MilliSatoshi(0), s"amount is not valid"))
+  amountOpt.foreach(a => require(a > MilliSatoshi(0), s"amount is not valid"))
   require(
     tags.collect { case _: Bolt11Invoice.PaymentHash => }.size == 1,
     "there must be exactly one payment hash tag"
@@ -124,7 +124,7 @@ case class Bolt11Invoice(
     *   the hash of this payment invoice
     */
   def hash: ByteVector32 = {
-    val hrp = s"$prefix${Amount.encode(amount_opt)}".getBytes("UTF-8")
+    val hrp = s"$prefix${Amount.encode(amountOpt)}".getBytes("UTF-8")
     val data = Bolt11Data(
       createdAt,
       tags,
@@ -154,7 +154,7 @@ case class Bolt11Invoice(
     */
   override def toString: String = {
     // currency unit is Satoshi, but we compute amounts in Millisatoshis
-    val hramount = Amount.encode(amount_opt)
+    val hramount = Amount.encode(amountOpt)
     val hrp = s"${prefix}$hramount"
     val data = Codecs.bolt11DataCodec
       .encode(Bolt11Data(createdAt, tags, signature))
@@ -218,7 +218,7 @@ object Bolt11Invoice {
     }
     Bolt11Invoice(
       prefix = prefix,
-      amount_opt = amount,
+      amountOpt = amount,
       createdAt = timestamp,
       nodeId = privateKey.publicKey,
       tags = tags,
@@ -693,13 +693,13 @@ object Bolt11Invoice {
     val pub = Crypto.recoverPublicKey(signature, Crypto.sha256(message), recid)
     // README: since we use pubkey recovery to compute the node id from the message and signature, we don't check the signature.
     // If instead we read the node id from the `n` field (which nobody uses afaict) then we would have to check the signature.
-    val amount_opt = Amount.decode(hrp.drop(prefix.length)) match {
+    val amountOpt = Amount.decode(hrp.drop(prefix.length)) match {
       case Success(value) => value
       case Failure(e)     => throw e
     }
     Bolt11Invoice(
       prefix = prefix,
-      amount_opt = amount_opt,
+      amountOpt = amountOpt,
       createdAt = bolt11Data.timestamp,
       nodeId = pub,
       tags = bolt11Data.taggedFields,
@@ -745,11 +745,11 @@ object Bolt11Invoice {
     */
   def fastHasExpired(input: String): Boolean = {
     val bolt11Data = readBoltData(input)
-    val expiry_opt = bolt11Data.taggedFields.collectFirst {
+    val expiryOpt = bolt11Data.taggedFields.collectFirst {
       case p: Bolt11Invoice.Expiry => p
     }
     val timestamp = bolt11Data.timestamp
-    expiry_opt match {
+    expiryOpt match {
       case Some(expiry) => timestamp + expiry.toLong <= TimestampSecond.now()
       case None => timestamp + DEFAULT_EXPIRY_SECONDS <= TimestampSecond.now()
     }
