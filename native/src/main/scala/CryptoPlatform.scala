@@ -283,19 +283,17 @@ private[scoin] trait CryptoPlatform {
       recoveryId: Int
   ): PublicKey =
     PublicKey(
-      ByteVector64(
-        ByteVector(
-          secp256k1
-            .recoverPublicKey(
-              message.toArray.map(_.toUByte),
-              signature.bytes.toArray.map(_.toUByte),
-              recoveryId
-            )
-            .toOption
-            .get
-            .value
-            .map(_.toByte)
-        )
+      ByteVector(
+        secp256k1
+          .recoverPublicKey(
+            message.toArray.map(_.toUByte),
+            signature.bytes.toArray.map(_.toUByte),
+            recoveryId
+          )
+          .toOption
+          .get
+          .value
+          .map(_.toByte)
       )
     )
 
