@@ -168,11 +168,11 @@ object Bolt11Invoice {
   val DEFAULT_EXPIRY_SECONDS: Long = 3600
   val DEFAULT_MIN_CLTV_EXPIRY_DELTA: CltvExpiryDelta = CltvExpiryDelta(18)
 
-  val prefixes = Map(
+  val prefixes = List(
     Block.RegtestGenesisBlock.hash -> "lnbcrt",
+    Block.SignetGenesisBlock.hash -> "lntbs",
     Block.TestnetGenesisBlock.hash -> "lntb",
-    Block.LivenetGenesisBlock.hash -> "lnbc",
-    Block.SignetGenesisBlock.hash -> "lntbs"
+    Block.LivenetGenesisBlock.hash -> "lnbc"
   )
 
   val defaultFeatures: Features[InvoiceFeature] = Features(
@@ -200,7 +200,9 @@ object Bolt11Invoice {
         .hasFeature(Features.PaymentSecret, Some(FeatureSupport.Mandatory)),
       "invoices must require a payment secret"
     )
-    val prefix = prefixes(chainHash)
+    val prefix = prefixes.collectFirst {
+      case (chain, prefix) if chainHash == chain => prefix
+    }.get
     val tags = {
       val defaultTags = List(
         Some(PaymentHash(paymentHash)),
@@ -349,9 +351,11 @@ object Bolt11Invoice {
           Base58Check.encode(Base58.Prefix.PubkeyAddress, data)
         case 18 if prefix == "lnbc" =>
           Base58Check.encode(Base58.Prefix.ScriptAddress, data)
-        case 17 if prefix == "lntb" || prefix == "lnbcrt" =>
+        case 17
+            if prefix == "lntb" || prefix == "lnbcrt" || prefix == "lntbs" =>
           Base58Check.encode(Base58.Prefix.PubkeyAddressTestnet, data)
-        case 18 if prefix == "lntb" || prefix == "lnbcrt" =>
+        case 18
+            if prefix == "lntb" || prefix == "lnbcrt" || prefix == "lntbs" =>
           Base58Check.encode(Base58.Prefix.ScriptAddressTestnet, data)
         case version if prefix == "lnbc" =>
           Bech32.encodeWitnessAddress("bc", version, data)
@@ -359,6 +363,8 @@ object Bolt11Invoice {
           Bech32.encodeWitnessAddress("tb", version, data)
         case version if prefix == "lnbcrt" =>
           Bech32.encodeWitnessAddress("bcrt", version, data)
+        case version if prefix == "lntbs" =>
+          Bech32.encodeWitnessAddress("tbs", version, data)
       }
     }
   }
@@ -678,7 +684,8 @@ object Bolt11Invoice {
     val lowercaseInput = input.toLowerCase
     val separatorIndex = lowercaseInput.lastIndexOf('1')
     val hrp = lowercaseInput.take(separatorIndex)
-    val prefix: String = prefixes.values
+    val prefix: String = prefixes
+      .map(_._2)
       .find(prefix => hrp.startsWith(prefix))
       .getOrElse(throw new RuntimeException("unknown prefix"))
     val data = string2Bits(
@@ -711,7 +718,7 @@ object Bolt11Invoice {
     val lowercaseInput = input.toLowerCase
     val separatorIndex = lowercaseInput.lastIndexOf('1')
     val hrp = lowercaseInput.take(separatorIndex)
-    if (!prefixes.values.exists(prefix => hrp.startsWith(prefix)))
+    if (!prefixes.exists { case (_, prefix) => hrp.startsWith(prefix) })
       throw new RuntimeException("unknown prefix")
     val data = string2Bits(
       lowercaseInput.slice(separatorIndex + 1, lowercaseInput.length - 6)
