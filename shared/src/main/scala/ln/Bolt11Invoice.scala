@@ -364,7 +364,7 @@ object Bolt11Invoice {
         case version if prefix == "lnbcrt" =>
           Bech32.encodeWitnessAddress("bcrt", version, data)
         case version if prefix == "lntbs" =>
-          Bech32.encodeWitnessAddress("tbs", version, data)
+          Bech32.encodeWitnessAddress("tb", version, data)
       }
     }
   }
