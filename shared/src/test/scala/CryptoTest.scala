@@ -165,7 +165,6 @@ object CryptoTest extends TestSuite {
         "0000000000000000000000000000000000000000000000000000000000000000"
       )
       val sig = Crypto.signSchnorr(msg, seckey, Some(auxrand32))
-      println(s"sig is ${sig.length} bytes: ${sig.toHex}")
       assert(
         "E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0" == sig.toHex
           .toUpperCase()

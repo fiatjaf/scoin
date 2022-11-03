@@ -645,9 +645,9 @@ object Sphinx {
           val encrypted =
             Crypto.ChaCha20Poly1305
               .encrypt(
-                ByteVector.fill(12)(0),
-                rho,
                 payload,
+                rho,
+                ByteVector.fill(12)(0),
                 ByteVector.empty
               )
           e = e.multiply(
