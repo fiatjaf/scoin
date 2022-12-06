@@ -39,9 +39,11 @@ case class Warning(
 ) extends SetupMessage
     with HasChannelId {
   val isGlobal: Boolean = channelId == ByteVector32.Zeroes
-  def toAscii: String = if (data.toArray.forall(ch => ch >= 32 && ch < 127))
-    new String(data.toArray, StandardCharsets.US_ASCII)
-  else "n/a"
+  def toAscii: String =
+    if (data.toArray.forall(ch => ch >= 32 && ch < 127))
+      new String(data.toArray, StandardCharsets.US_ASCII)
+    else "n/a"
+  def asText: String = new String(data.toArray, StandardCharsets.UTF_8)
 }
 
 object Warning {
@@ -59,9 +61,11 @@ case class Error(
     tlvStream: TlvStream[ErrorTlv] = TlvStream.empty
 ) extends SetupMessage
     with HasChannelId {
-  def toAscii: String = if (data.toArray.forall(ch => ch >= 32 && ch < 127))
-    new String(data.toArray, StandardCharsets.US_ASCII)
-  else "n/a"
+  def toAscii: String =
+    if (data.toArray.forall(ch => ch >= 32 && ch < 127))
+      new String(data.toArray, StandardCharsets.US_ASCII)
+    else "n/a"
+  def asText: String = new String(data.toArray, StandardCharsets.UTF_8)
 }
 
 object Error {
