@@ -57,7 +57,7 @@ object Secp256k1 extends js.Object {
     def negate(): Point = js.native
     def add(point: Point): Point = js.native
     def subtract(point: Point): Point = js.native
-    def multiply(scalar: Uint8Array): Point = js.native
+    def multiply(scalar: js.BigInt): Point = js.native
     def toRawBytes(compressed: Boolean): Uint8Array = js.native
     def assertValidity(): Unit = js.native
   }
@@ -158,7 +158,7 @@ trait Hash extends js.Object {
 @js.native
 @JSImport("chacha", JSImport.Default)
 object ChaCha extends js.Object {
-  def chacha(key: NodeBuffer, nonce: NodeBuffer): NodeCipherBase = js.native
+  def chacha20(key: NodeBuffer, nonce: NodeBuffer): NodeCipherBase = js.native
   def createCipher(key: NodeBuffer, nonce: NodeBuffer): NodeCipher = js.native
   def createDecipher(key: NodeBuffer, nonce: NodeBuffer): NodeDecipher =
     js.native
@@ -183,7 +183,7 @@ trait NodeDecipher extends NodeCipherBase {
 }
 
 @js.native
-@JSImport("buffer", JSImport.Default)
+@JSImport("buffer", "Buffer")
 object Buffer extends js.Object {
   def from(bytes: Uint8Array): NodeBuffer = js.native
 }

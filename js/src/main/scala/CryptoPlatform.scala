@@ -33,6 +33,9 @@ private[scoin] trait CryptoPlatform {
   private implicit def bytevector2biginteger(x: ByteVector): BigInteger =
     new BigInteger(x.toHex, 16)
 
+  private implicit def bytevector2jsbigint(x: ByteVector): js.BigInt =
+    js.BigInt(s"0x${x.toHex}")
+
   private val zero = BigInteger.valueOf(0)
   private val one = BigInteger.valueOf(1)
 
@@ -107,7 +110,11 @@ private[scoin] trait CryptoPlatform {
     )
 
     def multiply(that: PrivateKey): PublicKey = PublicKey(
-      ByteVector.view(point.multiply(that.value.toUint8Array).toRawBytes(true))
+      ByteVector.view(
+        point
+          .multiply(that.value.bytes)
+          .toRawBytes(true)
+      )
     )
 
     def toUncompressedBin: ByteVector = ByteVector.view(point.toRawBytes(false))
@@ -252,7 +259,7 @@ private[scoin] trait CryptoPlatform {
       key: ByteVector,
       nonce: ByteVector
   ): ByteVector = {
-    val c = ChaCha.chacha(
+    val c = ChaCha.chacha20(
       Buffer.from(key.toUint8Array),
       Buffer.from(nonce.toUint8Array)
     )
