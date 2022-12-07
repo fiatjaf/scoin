@@ -110,13 +110,9 @@ case class LastCrossSignedState(
         .writeUInt64(remoteBalance.toLong, ByteOrder.LITTLE_ENDIAN) ++
       Protocol.writeUInt32(localUpdates, ByteOrder.LITTLE_ENDIAN) ++
       Protocol.writeUInt32(remoteUpdates, ByteOrder.LITTLE_ENDIAN) ++
-      inPayments.foldLeft(ByteVector.empty) { case (acc, htlc) =>
-        acc ++ htlc
-      } ++
-      outPayments.foldLeft(ByteVector.empty) { case (acc, htlc) =>
-        acc ++ htlc
-      } :+
-      hostFlag.toByte
+      ByteVector.concat(inPayments) ++
+      ByteVector.concat(outPayments) ++
+      ByteVector.view(Array(hostFlag.toByte))
 
     Crypto.sha256(message)
   }
