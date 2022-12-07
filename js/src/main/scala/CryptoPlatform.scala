@@ -121,44 +121,34 @@ private[scoin] trait CryptoPlatform {
   }
 
   def sha1(input: ByteVector): ByteVector =
-    ByteVector.fromValidHex(
-      HashJS.sha1().update(input.toHex, "hex").digest("hex")
-    )
+    ByteVector.fromUint8Array(nobleSha1(input.toUint8Array))
 
   def sha256(input: ByteVector): ByteVector32 =
-    ByteVector32(
-      ByteVector.fromValidHex(
-        HashJS.sha256().update(input.toHex, "hex").digest("hex")
-      )
-    )
+    ByteVector32(ByteVector.fromUint8Array(nobleSha256(input.toUint8Array)))
 
   def sha512(input: ByteVector): ByteVector =
-    ByteVector.fromValidHex(
-      HashJS.sha512().update(input.toHex, "hex").digest("hex")
-    )
+    ByteVector.fromUint8Array(nobleSha512(input.toUint8Array))
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
-    ByteVector.fromValidHex(
-      HashJS
-        .hmac(HashJS.sha512, key.toHex, "hex")
-        .update(data.toHex, "hex")
-        .digest("hex")
+    ByteVector.fromUint8Array(
+      NobleHmac
+        .create(nobleSha512, key.toUint8Array)
+        .update(data.toUint8Array)
+        .digest()
     )
 
   def hmac256(key: ByteVector, data: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector.fromValidHex(
-        HashJS
-          .hmac(HashJS.sha256, key.toHex, "hex")
-          .update(data.toHex, "hex")
-          .digest("hex")
+      ByteVector.fromUint8Array(
+        NobleHmac
+          .create(nobleSha256, key.toUint8Array)
+          .update(data.toUint8Array)
+          .digest()
       )
     )
 
   def ripemd160(input: ByteVector): ByteVector =
-    ByteVector.fromValidHex(
-      HashJS.ripemd160().update(input.toHex, "hex").digest("hex")
-    )
+    ByteVector.fromUint8Array(nobleRipeMd160(input.toUint8Array))
 
   /** @param key
     *   serialized public key
@@ -259,12 +249,14 @@ private[scoin] trait CryptoPlatform {
       key: ByteVector,
       nonce: ByteVector
   ): ByteVector = {
-    val c = ChaCha.chacha20(
-      Buffer.from(key.toUint8Array),
-      Buffer.from(nonce.toUint8Array)
+    val dst = Uint8Array(input.size.toInt)
+    val c = chachaStream(
+      key.toUint8Array,
+      nonce.toUint8Array,
+      input.toUint8Array,
+      dst
     )
-    c.update(Buffer.from(key.toUint8Array))
-    ByteVector.fromUint8Array(c.`final`().asInstanceOf[Uint8Array])
+    ByteVector.fromUint8Array(c)
   }
 
   object ChaCha20Poly1305 {
@@ -274,17 +266,10 @@ private[scoin] trait CryptoPlatform {
         nonce: ByteVector,
         aad: ByteVector
     ): ByteVector = {
-      val c = ChaCha.createCipher(
-        Buffer.from(key.toUint8Array),
-        Buffer.from(nonce.toUint8Array)
+      val c = new ChaCha20Poly1305Sealer(key.toUint8Array)
+      ByteVector.fromUint8Array(
+        c.seal(nonce.toUint8Array, plaintext.toUint8Array, aad.toUint8Array)
       )
-      c.setAAD(Buffer.from(aad.toUint8Array))
-      c.update(Buffer.from(plaintext.toUint8Array))
-      val encrypted =
-        ByteVector.fromUint8Array(c.`final`().asInstanceOf[Uint8Array])
-      val mac =
-        ByteVector.fromUint8Array(c.getAuthTag().asInstanceOf[Uint8Array])
-      encrypted ++ mac
     }
 
     def decrypt(
@@ -293,14 +278,10 @@ private[scoin] trait CryptoPlatform {
         nonce: ByteVector,
         aad: ByteVector
     ): ByteVector = {
-      val c = ChaCha.createDecipher(
-        Buffer.from(key.toUint8Array),
-        Buffer.from(nonce.toUint8Array)
-      )
-      c.setAAD(Buffer.from(aad.toUint8Array))
-      c.setAuthTag(Buffer.from(ciphertext.takeRight(16).toUint8Array))
-      c.update(Buffer.from(ciphertext.dropRight(16).toUint8Array))
-      ByteVector.fromUint8Array(c.`final`().asInstanceOf[Uint8Array])
+      val c = new ChaCha20Poly1305Sealer(key.toUint8Array)
+      val result =
+        c.open(nonce.toUint8Array, ciphertext.toUint8Array, aad.toUint8Array)
+      ByteVector.fromUint8Array(result.get)
     }
   }
 }

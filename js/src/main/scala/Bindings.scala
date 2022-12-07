@@ -81,19 +81,11 @@ object monkeyPatch {
   }
 
   def hmacSha256Sync(key: Uint8Array, msgs: Seq[Uint8Array]): Uint8Array = {
-    ByteVector
-      .fromValidHex(
-        HashJS
-          .hmac(HashJS.sha256, ByteVector.view(key).toHex, "hex")
-          .update(
-            ByteVector
-              .concat(msgs.map(ByteVector.view(_)))
-              .toHex,
-            "hex"
-          )
-          .digest("hex")
-      )
-      .toUint8Array
+    var hmac = NobleHmac.create(nobleSha256, key)
+    msgs.foreach { data =>
+      hmac = hmac.update(data)
+    }
+    hmac.digest()
   }
 
   trait Sha256SyncFunctionType extends js.Function {
@@ -115,78 +107,64 @@ object monkeyPatch {
 }
 
 @js.native
-@JSImport("hash.js", JSImport.Default)
-object HashJS extends js.Object {
-  @js.native
-  object sha1 extends js.Object with HashProvider {
-    def apply(): Hash = js.native
-  }
-
-  @js.native
-  object sha256 extends js.Object with HashProvider {
-    def apply(): Hash = js.native
-  }
-
-  @js.native
-  object sha512 extends js.Object with HashProvider {
-    def apply(): Hash = js.native
-  }
-
-  @js.native
-  object ripemd160 extends js.Object with HashProvider {
-    def apply(): Hash = js.native
-  }
-
-  def hmac(hash: HashProvider, key: String, enc: String): Hash = js.native
+@JSImport("@noble/hashes/sha256", "sha256")
+object nobleSha256 extends js.Object {
+  def apply(bytes: Uint8Array): Uint8Array = js.native
 }
 
 @js.native
-trait HashProvider extends js.Object {
-  def apply(): Hash
-  val blockSize: Int = js.native
-  val outSize: Int = js.native
-  val hmacStrength: Int = js.native
-  val padLength: Int = js.native
+@JSImport("@noble/hashes/sha1", "sha1")
+object nobleSha1 extends js.Object {
+  def apply(bytes: Uint8Array): Uint8Array = js.native
 }
 
 @js.native
-trait Hash extends js.Object {
-  def update(msg: String, enc: String): Hash = js.native
-  def digest(enc: String): String = js.native
+@JSImport("@noble/hashes/sha512", "sha512")
+object nobleSha512 extends js.Object {
+  def apply(bytes: Uint8Array): Uint8Array = js.native
 }
 
 @js.native
-@JSImport("chacha", JSImport.Default)
-object ChaCha extends js.Object {
-  def chacha20(key: NodeBuffer, nonce: NodeBuffer): NodeCipherBase = js.native
-  def createCipher(key: NodeBuffer, nonce: NodeBuffer): NodeCipher = js.native
-  def createDecipher(key: NodeBuffer, nonce: NodeBuffer): NodeDecipher =
+@JSImport("@noble/hashes/ripemd160", "ripemd160")
+object nobleRipeMd160 extends js.Object {
+  def apply(bytes: Uint8Array): Uint8Array = js.native
+}
+
+@js.native
+@JSImport("@noble/hashes/hmac", "hmac")
+object NobleHmac extends js.Object {
+  def create(hash: js.Object, key: Uint8Array): Hmac = js.native
+}
+
+@js.native
+trait Hmac extends js.Object {
+  def update(data: Uint8Array): Hmac = js.native
+  def digest(): Uint8Array = js.native
+}
+
+@js.native
+@JSImport("@stablelib/chacha", "streamXOR")
+object chachaStream extends js.Object {
+  def apply(
+      key: Uint8Array,
+      nonce: Uint8Array,
+      src: Uint8Array,
+      dst: Uint8Array
+  ): Uint8Array =
     js.native
 }
 
 @js.native
-trait NodeCipherBase extends js.Object {
-  def update(data: NodeBuffer): Unit = js.native
-  def `final`(): NodeBuffer = js.native
+@JSImport("@stablelib/chacha20poly1305", "ChaCha20Poly1305")
+class ChaCha20Poly1305Sealer(key: Uint8Array) extends js.Object {
+  def seal(
+      nonce: Uint8Array,
+      plaintext: Uint8Array,
+      associatedData: Uint8Array
+  ): Uint8Array = js.native
+  def open(
+      nonce: Uint8Array,
+      ciphertext: Uint8Array,
+      associatedData: Uint8Array
+  ): js.UndefOr[Uint8Array] = js.native
 }
-
-@js.native
-trait NodeCipher extends NodeCipherBase {
-  def setAAD(aad: NodeBuffer): Unit = js.native
-  def getAuthTag(): NodeBuffer = js.native
-}
-
-@js.native
-trait NodeDecipher extends NodeCipherBase {
-  def setAAD(aad: NodeBuffer): Unit = js.native
-  def setAuthTag(tag: NodeBuffer): Unit = js.native
-}
-
-@js.native
-@JSImport("buffer", "Buffer")
-object Buffer extends js.Object {
-  def from(bytes: Uint8Array): NodeBuffer = js.native
-}
-
-@js.native
-trait NodeBuffer extends js.Object

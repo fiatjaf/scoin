@@ -37,9 +37,10 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     scalaVersion := "3.2.0",
     libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13),
     Compile / npmDependencies ++= Seq(
-      "@noble/secp256k1" -> "1.6.3",
-      "hash.js" -> "1.1.7",
-      "chacha" -> "2.1.0"
+      "@noble/secp256k1" -> "1.7.0",
+      "@noble/hashes" -> "1.1.4",
+      "@stablelib/chacha" -> "1.0.1",
+      "@stablelib/chacha20poly1305" -> "1.0.1"
     ),
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
   )
@@ -60,7 +61,7 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
     cond = Some("matrix.project == 'rootNative'"),
   ),
   WorkflowStep.Run(
-    List("npm install @noble/secp256k1 hash.js chacha"),
+    List("npm install @noble/secp256k1 @noble/hashes @stablelib/chacha @stablelib/chacha20poly1305"),
     name = Some("Install Node Modules"),
     cond = Some("matrix.project == 'rootJS'"),
   ),
