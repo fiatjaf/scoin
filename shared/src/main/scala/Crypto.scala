@@ -452,14 +452,30 @@ object Crypto extends CryptoPlatform {
     * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
     */
 
+  /**
+    * Tagged hash of input as defined in BIP340
+    */
+  def taggedHash(input: ByteVector, tag: String): ByteVector32 = {
+    val hashedTag = sha256(ByteVector(tag.getBytes("UTF-8")))
+    sha256(hashedTag ++ hashedTag ++ input)
+  }
+
   case class XOnlyPublicKey(value: ByteVector32) {
     def toHex: String = value.toHex
+    lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
+    lazy val outputKey: XOnlyPublicKey = this.pointAdd(PrivateKey(taggedHash(this.value.bytes, "TapTweak")).publicKey)
     override def toString = s"XOnlyPublicKey($toHex)"
   }
   object XOnlyPublicKey {
     def apply(pubKey: PublicKey): XOnlyPublicKey = XOnlyPublicKey(
       ByteVector32(ByteVector.view(pubKey.value.drop(1).toArray))
     )
+
+    implicit class xonlyOps(lhs: XOnlyPublicKey) {
+      def pointAdd(rhs: PublicKey): XOnlyPublicKey = XOnlyPublicKey(lhs.publicKey + rhs)
+      def plus(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
+      def +(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
+    }
   }
 
   /** Sign according to BIP340 specification
