@@ -20,6 +20,13 @@ object Crypto extends CryptoPlatform {
     def -(that: PrivateKey): PrivateKey = subtract(that)
     def *(that: PrivateKey): PrivateKey = multiply(that)
 
+    /**
+      * Negate a private key
+      * This is a naive slow implementation but works on every platform
+      * @return the multiplicative inverse of the private key
+      */
+    def negate: PrivateKey = PrivateKey(BigInt(value.toHex,16).modInverse(N))
+
     /** @param prefix
       *   Private key prefix
       * @return
@@ -27,6 +34,11 @@ object Crypto extends CryptoPlatform {
       */
     def toBase58(prefix: Byte) =
       Base58Check.encode(prefix, value.bytes :+ 1.toByte)
+
+    def tweak(tweak: ByteVector32): PrivateKey = {
+      val key = if (publicKey.isEven) this else this.negate
+      key + PrivateKey(tweak)
+    }
   }
 
   object PrivateKey {
@@ -39,6 +51,8 @@ object Crypto extends CryptoPlatform {
         fixSize(ByteVector.view(data.toByteArray.dropWhile(_ == 0.toByte)))
       )
     }
+
+    def apply(data: BigInt): PrivateKey = PrivateKey(data.bigInteger)
 
     /** @param data
       *   serialized private key in bitcoin format
@@ -84,6 +98,7 @@ object Crypto extends CryptoPlatform {
     def hash160: ByteVector = Crypto.hash160(value)
     def xonly: XOnlyPublicKey = XOnlyPublicKey(this)
     def isValid: Boolean = isPubKeyValidStrict(this.value)
+    def isEven: Boolean = value(0) == 2.toByte
 
     def +(that: PublicKey): PublicKey = add(that)
     def -(that: PublicKey): PublicKey = subtract(that)
@@ -502,7 +517,10 @@ object Crypto extends CryptoPlatform {
       privateKey: PrivateKey,
       auxrand32: Option[ByteVector32] = None
   ): ByteVector64 =
-    signSchnorrImpl(data, privateKey, auxrand32)
+    auxrand32 match {
+      case None => signSchnorrImpl(data, privateKey, Some(ByteVector32.Zeroes))
+      case Some(bv32) => signSchnorrImpl(data,privateKey,Some(bv32))
+    }
 
   /** Verify a BIP340 schnorr signature
     *
@@ -514,6 +532,20 @@ object Crypto extends CryptoPlatform {
   def verifySignatureSchnorr(
       data: ByteVector32,
       signature: ByteVector64,
+      publicKey: XOnlyPublicKey
+  ): Boolean =
+    verifySignatureSchnorrImpl(data, signature, publicKey)
+
+  /** Verify a BIP340 schnorr signature
+    *
+    * @param data
+    * @param signature
+    * @param publicKey
+    * @return
+    */
+  def verifySignatureSchnorr(
+      signature: ByteVector64,
+      data: ByteVector32,
       publicKey: XOnlyPublicKey
   ): Boolean =
     verifySignatureSchnorrImpl(data, signature, publicKey)

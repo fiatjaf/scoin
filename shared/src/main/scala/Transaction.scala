@@ -8,6 +8,7 @@ import scoin.Script.Runner
 import scodec.bits.ByteVector
 
 import scala.collection.mutable.ArrayBuffer
+import java.nio.ByteOrder
 
 object OutPoint extends BtcSerializer[OutPoint] {
   def apply(tx: Transaction, index: Int) =
@@ -588,6 +589,67 @@ object Transaction extends BtcSerializer[Transaction] {
       signatureVersion
     )
 
+  /**
+    * 
+    *
+    * @param tx
+    * @param inputIndex
+    * @param inputs
+    * @param sighashType
+    * @return
+    */
+  def hashForSigningSchnorr(tx: Transaction, inputIndex: Int, inputs: List[TxOut], sighashType: Int): ByteVector32 = {
+            val out = new ByteArrayOutputStream()
+            out.write(0)
+            out.write(sighashType)
+            val txData = tx.transactionData(inputs, sighashType)
+            out.write(txData.toArray)
+            out.write(0)
+            if ((sighashType & 0x80) == SIGHASH_ANYONECANPAY) {
+                OutPoint.write(tx.txIn(inputIndex).outPoint, out)
+                writeUInt64(inputs(inputIndex).amount.toLong, out)
+                writeScript(inputs(inputIndex).publicKeyScript.toArray, out)
+                writeUInt32(tx.txIn(inputIndex).sequence.toInt, out)
+            } else {
+                writeUInt32(inputIndex.toInt, out)
+            }
+            if ((sighashType & 3) == SIGHASH_SINGLE) {
+                val ser = TxOut.write(tx.txOut(inputIndex))
+                out.write(Crypto.sha256(ser).toArray)
+            }
+            val preimage = out.toByteArray()
+            Crypto.taggedHash(ByteVector(preimage), "TapSighash")
+  }
+
+  def prevoutsSha256(tx: Transaction): ByteVector = {
+            val arrays = tx.txIn.map(it => it.outPoint ).map( it => OutPoint.write(it, Protocol.PROTOCOL_VERSION) )
+            val concatenated = arrays.fold(ByteVector.empty) { case (acc, b) => acc ++ b }
+            Crypto.sha256(concatenated)
+  }
+
+  def amountsSha256(inputs: List[TxOut]): ByteVector = {
+            val arrays = inputs.map(_.amount).map(it =>  Protocol.writeUInt64(it.toLong,ByteOrder.LITTLE_ENDIAN))
+            val concatenated = arrays.fold(ByteVector.empty) { case (acc, b) => acc ++ b }
+            Crypto.sha256(concatenated)
+  }
+
+  def scriptPubkeysSha256(inputs: List[TxOut]): ByteVector = {
+            val buffer = new ByteArrayOutputStream()
+            inputs.foreach {it => Protocol.writeScript(it.publicKeyScript.toArray, buffer) }
+            Crypto.sha256(ByteVector(buffer.toByteArray()))
+  }
+
+  def sequencesSha256(tx: Transaction): ByteVector = {
+            val arrays = tx.txIn.map {it => it.sequence }.map {it => Protocol.writeUInt32(it) }
+            val concatenated = arrays.fold(ByteVector.empty) { case (acc, b) => acc ++ b }
+            Crypto.sha256(concatenated)
+  }
+
+  def outputsSha256(tx: Transaction): ByteVector = {
+            val arrays = tx.txOut.map {it => TxOut.write(it) }
+            val concatenated = arrays.fold(ByteVector.empty) { case (acc, b) => acc ++ b }
+            Crypto.sha256(concatenated)
+  }
   /** sign a tx input
     *
     * @param tx
@@ -831,4 +893,20 @@ case class Transaction(
     Transaction.weight(this, protocolVersion)
 
   override def serializer: BtcSerializer[Transaction] = Transaction
+
+  def transactionData(inputs: List[TxOut], sighashType: Int): ByteVector = {
+        val out = new ByteArrayOutputStream()
+        Protocol.writeUInt32(version, out)
+        Protocol.writeUInt32(lockTime, out)
+        if ((sighashType & 0x80) != SIGHASH_ANYONECANPAY) {
+            out.write(prevoutsSha256(this).toArray)
+            out.write(amountsSha256(inputs).toArray)
+            out.write(scriptPubkeysSha256(inputs).toArray)
+            out.write(sequencesSha256(this).toArray)
+        }
+        if ((sighashType & 3) != SIGHASH_NONE && (sighashType & 3) != SIGHASH_SINGLE) {
+            out.write(outputsSha256(this).toArray)
+        }
+        return ByteVector(out.toByteArray())
+  }
 }
