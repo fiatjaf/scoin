@@ -466,7 +466,7 @@ object Crypto extends CryptoPlatform {
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
 
     def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 = merkleRoot match {
-      case None => taggedHash(value ++ ByteVector(0), "TapTweak")
+      case None => taggedHash(value, "TapTweak")
       case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
     }
 
