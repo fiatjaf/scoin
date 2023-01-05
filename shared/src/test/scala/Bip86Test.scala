@@ -52,7 +52,7 @@ object Bip86Test extends TestSuite {
             val (_, master) = DeterministicWallet.ExtendedPrivateKey.decode("tprv8ZgxMBicQKsPeQQADibg4WF7mEasy3piWZUHyThAzJCPNgMHDVYhTCVfev3jFbDhcYm4GimeFMbbi9z1d9rfY1aL5wfJ9mNebQ4thJ62EJb")
             val key = DeterministicWallet.derivePrivateKey(master, KeyPath("86'/1'/0'/0/1"))
             val internalKey = XOnlyPublicKey(key.publicKey)
-            val outputKey = internalKey pointAdd PrivateKey(Crypto.taggedHash(internalKey.value, "TapTweak")).publicKey
+            val outputKey = internalKey.outputKey(None)
             assertEquals("tb1phlhs7afhqzkgv0n537xs939s687826vn8l24ldkrckvwsnlj3d7qj6u57c", Bech32.encodeWitnessAddress("tb", 1, outputKey.value))
         }
     }

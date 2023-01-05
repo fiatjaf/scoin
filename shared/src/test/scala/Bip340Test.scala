@@ -55,6 +55,18 @@ object Bip340Test extends TestSuite {
             }
         }
 
+        test("negate private key") {
+            val priv = ByteVector32.fromValidHex("67E56582298859DDAE725F972992A07C6C4FB9F62A8FFF58CE3CA926A1063530")
+            val npriv = PrivateKey(priv).negate
+            println(npriv.value.toHex.toUpperCase)
+            assertEquals(
+                "981A9A7DD677A622518DA068D66D5F824E5F22F084B8A0E2F195B5662F300C11",
+                npriv.value.toHex.toUpperCase,
+            )
+            val nnpriv = npriv.negate
+            assertEquals(priv, nnpriv.value)
+        }
+
     }
 
     // helper function so we can copy/paste easier from ACINQ's test code
