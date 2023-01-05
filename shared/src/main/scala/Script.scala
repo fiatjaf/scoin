@@ -2016,6 +2016,12 @@ object Script {
     }
   }
 
+  /**
+    * @param pubkey x-only public key
+    * @return a pay-to-taproot script
+    */
+  def pay2tr(pubkey: XOnlyPublicKey): Seq[ScriptElt] = OP_1 :: OP_PUSHDATA(pubkey.value) :: Nil
+
   /** @param pubKey
     *   public key
     * @param sig
