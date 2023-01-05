@@ -462,8 +462,17 @@ object Crypto extends CryptoPlatform {
 
   case class XOnlyPublicKey(value: ByteVector32) {
     def toHex: String = value.toHex
+
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
-    lazy val outputKey: XOnlyPublicKey = this.pointAdd(PrivateKey(taggedHash(this.value.bytes, "TapTweak")).publicKey)
+
+    def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 = merkleRoot match {
+      case None => taggedHash(value ++ ByteVector(0), "TapTweak")
+      case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
+    }
+
+    def outputKey(merkleRoot: Option[ByteVector32] = None): XOnlyPublicKey = 
+      this.pointAdd(PrivateKey(tweak(merkleRoot)).publicKey)
+
     override def toString = s"XOnlyPublicKey($toHex)"
   }
   object XOnlyPublicKey {
