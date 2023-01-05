@@ -25,7 +25,7 @@ object Crypto extends CryptoPlatform {
       * This is a naive slow implementation but works on every platform
       * @return the multiplicative inverse of the private key
       */
-    def negate: PrivateKey = PrivateKey(BigInt(value.toHex,16).modInverse(N))
+    def negate: PrivateKey = PrivateKey((BigInt(N)-BigInt(value.toHex,16)).mod(N))
 
     /** @param prefix
       *   Private key prefix
@@ -52,7 +52,10 @@ object Crypto extends CryptoPlatform {
       )
     }
 
-    def apply(data: BigInt): PrivateKey = PrivateKey(data.bigInteger)
+    def apply(data: BigInt): PrivateKey = {
+      require(data >= 0, "only non-negative integers mod N allowed")
+      PrivateKey(fixSize(ByteVector.fromValidHex(data.mod(N).toString(16))))
+    }
 
     /** @param data
       *   serialized private key in bitcoin format
