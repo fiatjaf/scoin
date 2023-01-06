@@ -23,9 +23,11 @@ object Crypto extends CryptoPlatform {
     /**
       * Negate a private key
       * This is a naive slow implementation but works on every platform
-      * @return the multiplicative inverse of the private key
+      * @return negation of private key
       */
     def negate: PrivateKey = PrivateKey((BigInt(N)-BigInt(value.toHex,16)).mod(N))
+
+    def xOnlyPublicKey: XOnlyPublicKey = XOnlyPublicKey(publicKey)
 
     /** @param prefix
       *   Private key prefix
@@ -102,6 +104,7 @@ object Crypto extends CryptoPlatform {
     def xonly: XOnlyPublicKey = XOnlyPublicKey(this)
     def isValid: Boolean = isPubKeyValidStrict(this.value)
     def isEven: Boolean = value(0) == 2.toByte
+    def isOdd: Boolean = !isEven
 
     def +(that: PublicKey): PublicKey = add(that)
     def -(that: PublicKey): PublicKey = subtract(that)
@@ -524,6 +527,21 @@ object Crypto extends CryptoPlatform {
       case None => signSchnorrImpl(data, privateKey, Some(ByteVector32.Zeroes))
       case Some(bv32) => signSchnorrImpl(data,privateKey,Some(bv32))
     }
+
+  sealed trait SchnorrTweak
+  case object NoTweak extends SchnorrTweak
+  case object NoScriptPathsTweak extends SchnorrTweak
+  case class KeyPathTweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
+  case class Tweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
+
+  def signSchnorrWithTweak(
+      data: ByteVector32, 
+      privateKey: PrivateKey, 
+      tweak: SchnorrTweak, 
+      auxrand32: Option[ByteVector32] = None
+  ): ByteVector64 = {
+    ???
+  }
 
   /** Verify a BIP340 schnorr signature
     *
