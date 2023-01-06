@@ -106,6 +106,20 @@ object ScriptFlags {
     */
   val MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH
 
+  // Taproot/Tapscript validation (BIPs 341 & 342)
+  //
+  val SCRIPT_VERIFY_TAPROOT: Int = (1 << 17)
+
+  // Making unknown Taproot leaf versions non-standard
+  //
+  val SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION: Int = (1 << 18)
+
+  // Making unknown OP_SUCCESS non-standard
+  val SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS: Int = (1 << 19)
+
+  // Making unknown public key versions (in BIP 342 scripts) non-standard
+  val SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE: Int = (1 << 20)
+
   /** Standard script verification flags that standard transactions will comply
     * with. However scripts violating these flags may still be present in valid
     * blocks and we must accept those blocks.
@@ -125,7 +139,11 @@ object ScriptFlags {
     SCRIPT_VERIFY_WITNESS |
     SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM |
     SCRIPT_VERIFY_WITNESS_PUBKEYTYPE |
-    SCRIPT_VERIFY_CONST_SCRIPTCODE
+    SCRIPT_VERIFY_CONST_SCRIPTCODE |
+    SCRIPT_VERIFY_TAPROOT |
+    SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION |
+    SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS |
+    SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE
 
   /** For convenience, standard but not mandatory verify flags. */
   val STANDARD_NOT_MANDATORY_VERIFY_FLAGS =
@@ -143,6 +161,10 @@ object Script {
   private val True = ByteVector.fromByte(1)
 
   private val False = ByteVector.empty
+
+  val WITNESS_V0_SCRIPTHASH_SIZE: Int = 32
+  val WITNESS_V0_KEYHASH_SIZE: Int = 20
+  val WITNESS_V1_TAPROOT_SIZE: Int = 32
 
   /** parse a script from a input stream of binary data
     *
@@ -468,7 +490,7 @@ object Script {
     * @param inputIndex
     *   0-based index of the tx input that is being processed
     */
-  case class Context(tx: Transaction, inputIndex: Int, amount: Satoshi) {
+  case class Context(tx: Transaction, inputIndex: Int, amount: Satoshi, prevouts: List[TxOut]) {
     require(
       inputIndex >= 0 && inputIndex < tx.txIn.length,
       "invalid input index"
@@ -1657,11 +1679,19 @@ object Script {
     def verifyWitnessProgram(
         witness: ScriptWitness,
         witnessVersion: Long,
-        program: ByteVector
+        program: ByteVector,
+        isP2sh: Boolean = false
     ): Unit = {
+      def sigHashType(sig: ByteVector): Int = sig.size match {
+        case 64 => SIGHASH_DEFAULT
+        case 65 if(sig(64).toInt == SIGHASH_DEFAULT) => throw new IllegalArgumentException("invalid sig hashtype")
+        case 65 => sig(64).toInt
+        case _ => throw new IllegalArgumentException("invalid signature")
+      }
+
       val stackScript: Option[(Seq[ByteVector], List[ScriptElt])] =
         witnessVersion match {
-          case 0 if program.length == 20 =>
+          case 0 if program.length == WITNESS_V0_KEYHASH_SIZE =>
             // P2WPKH, program is simply the pubkey hash
             require(
               witness.stack.length == 2,
@@ -1675,7 +1705,7 @@ object Script {
                 ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil
               )
             )
-          case 0 if program.length == 32 =>
+          case 0 if program.length == WITNESS_V0_SCRIPTHASH_SIZE =>
             // P2WPSH, program is the hash of the script, and witness is the stack + the script
             val check = Crypto.sha256(witness.stack.last)
             require(check.bytes == program, "witness program mismatch")
@@ -1684,6 +1714,23 @@ object Script {
             throw new IllegalArgumentException(
               s"Invalid witness program length: ${program.length}"
             )
+          case 1 if program.length == WITNESS_V1_TAPROOT_SIZE && !isP2sh =>
+            // BIP341 Taproot: 32-byte non-P2SH witness v1 program (which encodes a P2C-tweaked pubkey)
+            if ((scriptFlag & ScriptFlags.SCRIPT_VERIFY_TAPROOT) == 0) return
+            require(witness.stack.nonEmpty,"Witness program cannot be empty")
+            // Key path spending (stack size is 1 after removing optional annex)
+            if (witness.stack.size == 1) {
+                val sig = witness.stack.head
+                val pub = XOnlyPublicKey(ByteVector32(program))
+                val hashType = sigHashType(sig)
+                val hash = Transaction.hashForSigningSchnorr(context.tx, context.inputIndex, context.prevouts, hashType)
+                require(Crypto.verifySignatureSchnorr(ByteVector64(sig.take(64)), hash, pub)," invalid Schnorr signature ")
+                return
+            } else {
+                // FIXME: implement tapscript
+                ???
+                // Pair(witness.stack.take(witness.stack.count() - 1), parse(witness.stack.last()))
+            }
           case _
               if (scriptFlag & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM) != 0 =>
             throw new IllegalArgumentException(

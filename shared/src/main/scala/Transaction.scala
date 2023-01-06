@@ -735,11 +735,12 @@ object Transaction extends BtcSerializer[Transaction] {
       scriptFlags: Int,
       callback: Option[Runner.Callback]
   ): Unit = {
+    val prevouts = tx.txIn.map(txi => previousOutputs(txi.outPoint)).toList
     for (i <- tx.txIn.indices if !OutPoint.isCoinbase(tx.txIn(i).outPoint)) {
       val prevOutput = previousOutputs(tx.txIn(i).outPoint)
       val prevOutputScript = prevOutput.publicKeyScript
       val amount = prevOutput.amount
-      val ctx = Script.Context(tx, i, amount)
+      val ctx = Script.Context(tx, i, amount, prevouts)
       val runner = new Script.Runner(ctx, scriptFlags, callback)
       if (
         !runner.verifyScripts(
