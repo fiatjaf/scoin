@@ -162,9 +162,42 @@ object Script {
 
   private val False = ByteVector.empty
 
+  val MAX_SCRIPT_SIZE: Int = 10000
+  val MAX_SCRIPT_ELEMENT_SIZE: Int = 520
+  val MAX_OPS_PER_SCRIPT: Int = 201
+  val LOCKTIME_THRESHOLD: Long = 500000000L
   val WITNESS_V0_SCRIPTHASH_SIZE: Int = 32
   val WITNESS_V0_KEYHASH_SIZE: Int = 20
   val WITNESS_V1_TAPROOT_SIZE: Int = 32
+  val TAPROOT_LEAF_MASK: Int = 0xfe
+  val TAPROOT_LEAF_TAPSCRIPT: Int = 0xc0
+
+  // Validation weight per passing signature (Tapscript only, see BIP 342).
+  val VALIDATION_WEIGHT_PER_SIGOP_PASSED: Int = 50
+
+  def isOpSuccess(opcode: Int): Boolean = {
+      opcode == 80 || opcode == 98 || 
+      (126 to 129).contains(opcode) ||
+      (131 to 134).contains(opcode) || 
+      (137 to 138).contains(opcode) ||
+      (141 to 142).contains(opcode) || 
+      (149 to 153).contains(opcode) ||
+      (187 to 254).contains(opcode)
+    }
+
+  def scriptIterator(script: ByteVector): Iterator[ScriptElt] = scriptIterator(ByteArrayInputStream(script.toArray))
+  def scriptIterator(input:ByteArrayInputStream): Iterator[ScriptElt] = new Iterator[ScriptElt] {
+    def hasNext: Boolean = input.available > 0
+    def next: ScriptElt = input.read match {
+      case 0 => OP_0
+      case i if (1 until 0x4c).contains(i) => OP_PUSHDATA(Protocol.bytes(input,i),i)
+      case 0x4c => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint8(input).toInt),0x4c)
+      case 0x4d => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint16(input).toInt),0x4d)
+      case 0x4e => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint32(input).toLong), 0x4e)
+      case code if(ScriptElt.code2elt.contains(code)) => ScriptElt.code2elt(code)
+      case code => OP_INVALID(code)
+    }
+  }
 
   /** parse a script from a input stream of binary data
     *
