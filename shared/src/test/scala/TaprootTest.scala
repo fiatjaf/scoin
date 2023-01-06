@@ -43,6 +43,35 @@ object TaprootTest extends TestSuite {
             val ourSig1 = Crypto.signSchnorr(hash, priv, Some(ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")))
             assertTrue(Crypto.verifySignatureSchnorr(ourSig1, hash, outputKey))
         }
+
+        test("send to and spend from taproot addresses") {
+            val privateKey = PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010101"))
+            val internalKey = XOnlyPublicKey(privateKey.publicKey)
+            val outputKey = internalKey.outputKey(None)
+            val address = Bech32.encodeWitnessAddress("tb", 1, outputKey.value)
+            assertEquals("tb1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8snwrkwy", address)
+
+            // this tx sends to tb1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8snwrkwy
+            val tx =
+                Transaction.read("02000000000101bf77ef36f2c0f32e0822cef0514948254997495a34bfba7dd4a73aabfcbb87900000000000fdffffff02c2c2000000000000160014b5c3dbfeb8e7d0c809c3ba3f815fd430777ef4be50c30000000000002251208c5db7f797196d6edc4dd7df6048f4ea6b883a6af6af032342088f436543790f0140583f758bea307216e03c1f54c3c6088e8923c8e1c89d96679fb00de9e808a79d0fba1cc3f9521cb686e8f43fb37cc6429f2e1480c70cc25ecb4ac0dde8921a01f1f70000")
+            assertEquals(Script.pay2tr(outputKey), Script.parse(tx.txOut(1).publicKeyScript))
+    
+            // we want to spend
+            val outputScript = addressToPublicKeyScript(Block.TestnetGenesisBlock.hash, "tb1pn3g330w4n5eut7d4vxq0pp303267qc6vg8d2e0ctjuqre06gs3yqnc5yx0")
+            val tx1 = Transaction(
+                version = 2L,
+                txIn = List(TxIn(OutPoint(tx,1),signatureScript = ByteVector.empty, sequence = TxIn.SEQUENCE_FINAL, witness = ScriptWitness.empty)),
+                txOut = List(TxOut(49258.sat, outputScript)),
+                lockTime = 0L
+            )
+            val sigHashType = SIGHASH_ALL
+            val hash = Transaction.hashForSigningSchnorr(tx1, 0, List(tx.txOut(1)), sigHashType)
+            val priv = privateKey.tweak(internalKey.tweak(None))
+            val sig = Crypto.signSchnorr(hash, priv, Some(ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")))
+            val tx2 = tx1.updateWitness(0, ScriptWitness(List(sig)))
+            assertEquals(ByteVector32.fromValidHex("4b88aacc747b4cc90bbc6db6e14f8efd0bdc9842deac6df34b7bbea912130806"), tx2.txid)
+            //Transaction.correctlySpends(tx2, tx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+        }
     }
 
     // helper function so we can copy/paste easier from ACINQ's test code
