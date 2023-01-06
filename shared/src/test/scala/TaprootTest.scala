@@ -25,12 +25,12 @@ object TaprootTest extends TestSuite {
 
              // tx1 spends tx using key path spending i.e its witness just includes a single signature that is valid for outputKey
             val tx1 = Transaction.read("020000000001018cd229daf76b9733dad3f4d183809f6594abb788a1bf07f04d6e889d2040dbc00000000000fdffffff011086010000000000225120bfef0f753700ac863e748f8d02c4b0d1fc7569933fd55fb6c3c598e84ff28b7c01407f330922263a3f281e111bf8583964644ef7f694494d028de546b162cbd68591ab38f9626a8922dc20a84776dc9bd8a21dc5c64ffc5fa6f28f0d42ed2e5ffb7dcef50000")
-            val sig = ByteVector64(tx1.txIn(0).witness.stack.head)
+            val sig = tx1.txIn(0).witness.stack.head
             val sighashType: Int = if(sig.size == 65) sig(64).toInt else 0
 
             // check that tx1's signature is valid
             val hash = Transaction.hashForSigningSchnorr(tx1, 0, List(tx.txOut.head), sighashType)
-            assertTrue(Crypto.verifySignatureSchnorr(sig, hash, outputKey))
+            assertTrue(Crypto.verifySignatureSchnorr(ByteVector64(sig.take(64)), hash, outputKey))
 
             // re-create signature
             val priv = key.privateKey.tweak(internalKey.tweak(None))
@@ -64,13 +64,23 @@ object TaprootTest extends TestSuite {
                 txOut = List(TxOut(49258.sat, outputScript)),
                 lockTime = 0L
             )
-            val sigHashType = SIGHASH_ALL
+            val sigHashType = 0
             val hash = Transaction.hashForSigningSchnorr(tx1, 0, List(tx.txOut(1)), sigHashType)
             val priv = privateKey.tweak(internalKey.tweak(None))
             val sig = Crypto.signSchnorr(hash, priv, Some(ByteVector32.fromValidHex("0000000000000000000000000000000000000000000000000000000000000000")))
             val tx2 = tx1.updateWitness(0, ScriptWitness(List(sig)))
-            assertEquals(ByteVector32.fromValidHex("4b88aacc747b4cc90bbc6db6e14f8efd0bdc9842deac6df34b7bbea912130806"), tx2.txid)
-            //Transaction.correctlySpends(tx2, tx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+
+            // pull sig back out of tx and verify the signature only
+            val sig2 = tx2.txIn(0).witness.stack.head
+            assertEquals(ByteVector64(sig2),sig)
+            val sigHashType2: Int = if(sig2.size == 65) sig2(64).toInt else 0
+            assertEquals(sigHashType2,sigHashType)
+            val hash2 = Transaction.hashForSigningSchnorr(tx2,0, List(tx.txOut(1)), sigHashType2)
+            assertEquals(hash2,hash)
+            assertTrue(Crypto.verifySignatureSchnorr(ByteVector64(sig2.take(64)),hash2,outputKey))
+
+            // now verify the transaction too
+            Transaction.correctlySpends(tx2, List(tx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
         }
     }
 
