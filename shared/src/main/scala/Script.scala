@@ -186,7 +186,7 @@ object Script {
     }
 
   def scriptIterator(script: ByteVector): Iterator[ScriptElt] = scriptIterator(new ByteArrayInputStream(script.toArray))
-  def scriptIterator(input:ByteArrayInputStream): Iterator[ScriptElt] = new Iterator[ScriptElt] {
+  def scriptIterator(input: InputStream): Iterator[ScriptElt] = new Iterator[ScriptElt] {
     def hasNext: Boolean = input.available > 0
     def next: ScriptElt = input.read match {
       case 0 => OP_0
@@ -199,45 +199,9 @@ object Script {
     }
   }
 
-  /** parse a script from a input stream of binary data
-    *
-    * @param input
-    *   input stream
-    * @param stack
-    *   initial command stack
-    * @return
-    *   an updated command stack
-    */
-  @tailrec
-  def parse(
-      input: InputStream,
-      stack: collection.immutable.Vector[ScriptElt] = Vector.empty[ScriptElt]
-  ): List[ScriptElt] = {
-    val code = input.read()
-    code match {
-      case -1 => stack.toList
-      case 0  => parse(input, stack :+ OP_0)
-      case opCode if opCode > 0 && opCode < 0x4c =>
-        parse(input, stack :+ OP_PUSHDATA(bytes(input, opCode), opCode))
-      case 0x4c =>
-        parse(input, stack :+ OP_PUSHDATA(bytes(input, uint8(input)), 0x4c))
-      case 0x4d =>
-        parse(input, stack :+ OP_PUSHDATA(bytes(input, uint16(input)), 0x4d))
-      case 0x4e =>
-        parse(input, stack :+ OP_PUSHDATA(bytes(input, uint32(input)), 0x4e))
-      case opCode if code2elt.contains(opCode) =>
-        parse(input, stack :+ code2elt(opCode))
-      case opCode =>
-        parse(
-          input,
-          stack :+ OP_INVALID(opCode)
-        ) // unknown/invalid ops can be parsed but not executed
-    }
-  }
+  def parse(input: InputStream): List[ScriptElt] = scriptIterator(input).toList
 
-  def parse(blob: ByteVector): List[ScriptElt] = if (blob.length > 10000)
-    throw new RuntimeException("script is too large")
-  else parse(new ByteArrayInputStream(blob.toArray))
+  def parse(blob: ByteVector): List[ScriptElt] = parse(new ByteArrayInputStream(blob.toArray))
 
   def parse(blob: Array[Byte]): List[ScriptElt] = parse(ByteVector.view(blob))
 
