@@ -185,7 +185,7 @@ object Script {
       (187 to 254).contains(opcode)
     }
 
-  def scriptIterator(script: ByteVector): Iterator[ScriptElt] = scriptIterator(ByteArrayInputStream(script.toArray))
+  def scriptIterator(script: ByteVector): Iterator[ScriptElt] = scriptIterator(new ByteArrayInputStream(script.toArray))
   def scriptIterator(input:ByteArrayInputStream): Iterator[ScriptElt] = new Iterator[ScriptElt] {
     def hasNext: Boolean = input.available > 0
     def next: ScriptElt = input.read match {
@@ -1756,7 +1756,7 @@ object Script {
                 val sig = witness.stack.head
                 val pub = XOnlyPublicKey(ByteVector32(program))
                 val hashType = sigHashType(sig)
-                val hash = Transaction.hashForSigningSchnorr(context.tx, context.inputIndex, context.prevouts, hashType)
+                val hash = Transaction.hashForSigningSchnorr(context.tx, context.inputIndex, context.prevouts, hashType, SigVersion.SIGVERSION_TAPROOT)
                 require(Crypto.verifySignatureSchnorr(ByteVector64(sig.take(64)), hash, pub)," invalid Schnorr signature ")
                 return
             } else {
