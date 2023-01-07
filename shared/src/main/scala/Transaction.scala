@@ -104,8 +104,8 @@ object TxIn extends BtcSerializer[TxIn] {
 
   override def validate(input: TxIn): Unit = {
     require(
-      input.signatureScript.length <= MaxScriptElementSize,
-      s"signature script is ${input.signatureScript.length} bytes, limit is $MaxScriptElementSize bytes"
+      input.signatureScript.length <= Script.MAX_SCRIPT_ELEMENT_SIZE,
+      s"signature script is ${input.signatureScript.length} bytes, limit is ${Script.MAX_SCRIPT_ELEMENT_SIZE} bytes"
     )
   }
 
@@ -176,8 +176,8 @@ object TxOut extends BtcSerializer[TxOut] {
       s"invalid txout amount: $amount"
     )
     require(
-      publicKeyScript.length < MaxScriptElementSize,
-      s"public key script is ${publicKeyScript.length} bytes, limit is $MaxScriptElementSize bytes"
+      publicKeyScript.length < Script.MAX_SCRIPT_ELEMENT_SIZE,
+      s"public key script is ${publicKeyScript.length} bytes, limit is ${Script.MAX_SCRIPT_ELEMENT_SIZE} bytes"
     )
   }
 }
@@ -590,15 +590,24 @@ object Transaction extends BtcSerializer[Transaction] {
     )
 
   /**
-    * 
-    *
-    * @param tx
-    * @param inputIndex
-    * @param inputs
-    * @param sighashType
-    * @return
-    */
-  def hashForSigningSchnorr(tx: Transaction, inputIndex: Int, inputs: List[TxOut], sighashType: Int): ByteVector32 = {
+   * @param tx transaction to sign
+   * @param inputIndex index of the transaction input being signed
+   * @param inputs UTXOs spent by this transaction
+   * @param sighashType signature hash type
+   * @param sigVersion signature version
+   * @param annex optional annex (used for tapscript transactions)
+   * @param tapleafHash optional tapleaf hash (used for tapscript transactions)
+   * @param codeSeparatorPos position of the last OP_CODESEPARATOR operation in the script that is being executed
+   */
+  def hashForSigningSchnorr(
+    tx: Transaction, inputIndex: Int, 
+    inputs: List[TxOut], 
+    sighashType: Int,
+    sigVersion: Int,
+    annex: Option[ByteVector32] = None,
+    tapleafHash: Option[ByteVector32] = None,
+    codeSeparatorPos: Long = 0xFFFFFFFFL
+    ): ByteVector32 = {
             val out = new ByteArrayOutputStream()
             out.write(0)
             out.write(sighashType)

@@ -537,10 +537,17 @@ object Crypto extends CryptoPlatform {
   def signSchnorrWithTweak(
       data: ByteVector32, 
       privateKey: PrivateKey, 
-      tweak: SchnorrTweak, 
+      merkleRoot: Option[ByteVector32], 
       auxrand32: Option[ByteVector32] = None
   ): ByteVector64 = {
-    ???
+    val priv = merkleRoot match {
+      case None => privateKey
+      case Some(ByteVector32.Zeroes) => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(None))
+      case _ => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(merkleRoot))
+    }
+    val sig = signSchnorr(data,priv,auxrand32)
+    require(verifySignatureSchnorr(sig,data,priv.xOnlyPublicKey),"Cannot create Schnorr signature")
+    sig
   }
 
   /** Verify a BIP340 schnorr signature
