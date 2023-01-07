@@ -610,10 +610,16 @@ object Transaction extends BtcSerializer[Transaction] {
     ): ByteVector32 = {
             val out = new ByteArrayOutputStream()
             out.write(0)
+            require(sighashType <= 0x03 || (0x81 to 0x83).contains(sighashType), "invalid sighash type for hashForSigningSchnorr")
             out.write(sighashType)
             val txData = tx.transactionData(inputs, sighashType)
             out.write(txData.toArray)
-            out.write(0)
+            val (extFlag, keyVersion) = sigVersion match {
+                case SigVersion.SIGVERSION_TAPSCRIPT => (1, 0)
+                case _ => (0,0)
+            }
+            val spendType = 2 * extFlag + (if (annex.nonEmpty) 1 else 0)
+            out.write(spendType)
             if ((sighashType & 0x80) == SIGHASH_ANYONECANPAY) {
                 OutPoint.write(tx.txIn(inputIndex).outPoint, out)
                 writeUInt64(inputs(inputIndex).amount.toLong, out)
@@ -622,9 +628,20 @@ object Transaction extends BtcSerializer[Transaction] {
             } else {
                 writeUInt32(inputIndex.toInt, out)
             }
+            if (annex.nonEmpty) {
+                val buffer = new ByteArrayOutputStream()
+                writeScript(annex.get.toArray, buffer)
+                val annexHash = Crypto.sha256(ByteVector(buffer.toByteArray()))
+                out.write(annexHash.toArray)
+            }
             if ((sighashType & 3) == SIGHASH_SINGLE) {
                 val ser = TxOut.write(tx.txOut(inputIndex))
                 out.write(Crypto.sha256(ser).toArray)
+            }
+            if (sigVersion == SigVersion.SIGVERSION_TAPSCRIPT) {
+                tapleafHash.foreach(h => out.write(h.toArray))
+                out.write(keyVersion)
+                writeUInt32(codeSeparatorPos, out)
             }
             val preimage = out.toByteArray()
             Crypto.taggedHash(ByteVector(preimage), "TapSighash")
