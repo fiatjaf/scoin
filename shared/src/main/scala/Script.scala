@@ -1795,7 +1795,17 @@ object Script {
         isP2sh: Boolean = false
     ): Unit = {
 
-      val stackScript: Option[(Seq[ByteVector], List[ScriptElt])] =
+        // check that the input stack contains a single "1" element, as it should be if script execution was correct
+        def checkFinalStack(stack: Stack): Unit = {
+          require(stack.size == 1, "final stack size must be 1 element")
+          require(castToBoolean(stack.head), "final stack element must evaluate to true")
+        }
+
+        // reset taproot execution data (UNSAFE! FIXME!)
+        context.annex = None
+        context.validationWeightLeft = None
+        context.tapleafHash = None
+
         witnessVersion match {
           case 0 if program.length == WITNESS_V0_KEYHASH_SIZE =>
             // P2WPKH, program is simply the pubkey hash
@@ -1803,19 +1813,35 @@ object Script {
               witness.stack.length == 2,
               "Invalid witness program, should have 2 items"
             )
-            Some(
-              (
-                witness.stack,
-                OP_DUP :: OP_HASH160 :: OP_PUSHDATA(
-                  program
-                ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil
-              )
+            val finalStack = run(
+                OP_DUP :: OP_HASH160 :: OP_PUSHDATA(program) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil,
+                witness.stack.reverse.toList,
+                State(
+                    conditions = List.empty[Boolean],
+                    altstack = List.empty[ByteVector],
+                    opCount = 0,
+                    scriptCode = Script.parse(program)
+                ),
+                SigVersion.SIGVERSION_WITNESS_V0
             )
+            checkFinalStack(finalStack)
           case 0 if program.length == WITNESS_V0_SCRIPTHASH_SIZE =>
             // P2WPSH, program is the hash of the script, and witness is the stack + the script
             val check = Crypto.sha256(witness.stack.last)
             require(check.bytes == program, "witness program mismatch")
-            Some((witness.stack.dropRight(1), Script.parse(witness.stack.last)))
+            //Some((witness.stack.dropRight(1), Script.parse(witness.stack.last)))
+            val finalStack = run(
+              Script.parse(witness.stack.last),
+              witness.stack.dropRight(1).reverse.toList,
+              State(
+                    conditions = List.empty[Boolean],
+                    altstack = List.empty[ByteVector],
+                    opCount = 0,
+                    scriptCode = Script.parse(program)
+              ),
+              SigVersion.SIGVERSION_WITNESS_V0
+            )
+            checkFinalStack(finalStack)
           case 0 =>
             throw new IllegalArgumentException(
               s"Invalid witness program length: ${program.length}"
@@ -1824,6 +1850,11 @@ object Script {
             // BIP341 Taproot: 32-byte non-P2SH witness v1 program (which encodes a P2C-tweaked pubkey)
             if ((scriptFlag & ScriptFlags.SCRIPT_VERIFY_TAPROOT) == 0) return
             require(witness.stack.nonEmpty,"Witness program cannot be empty")
+            val (stack, annex) = witness.stack.size match {
+              case s if s >= 2 && witness.stack.last(0) == 0x50.toByte => (witness.stack.dropRight(1), Some(ByteVector32(witness.stack.last)))
+              case _ => (witness.stack, None)
+            }
+            context.annex = annex
             // Key path spending (stack size is 1 after removing optional annex)
             if (witness.stack.size == 1) {
                 val sig = witness.stack.head
@@ -1835,36 +1866,62 @@ object Script {
             } else {
                 // FIXME: implement tapscript
                 ???
-                // Pair(witness.stack.take(witness.stack.count() - 1), parse(witness.stack.last()))
+                /*val outputKey = XonlyPublicKey(program.byteVector32())
+                val script = stack[stack.size - 2]
+                val control = stack[stack.size - 1]
+                require((control.size() - 33).mod(32) == 0) { "invalid control block size" }
+                require((control.size() - 33) / 32 in 0..128) { "invalid control block size" }
+                val leafVersion = control[0].toInt() and TAPROOT_LEAF_MASK
+                val internalKey = XonlyPublicKey(control.slice(1, 33).toByteArray().byteVector32())
+                val tapleafHash = run {
+                    val buffer = ByteArrayOutput()
+                    buffer.write(leafVersion)
+                    BtcSerializer.writeScript(script, buffer)
+                    Crypto.taggedHash(buffer.toByteArray(), "TapLeaf")
+                }
+                this.context.tapleafHash = tapleafHash
+
+                // split input buffer into 32 bytes chunks (input buffer size MUST be a multiple of 32 !!)
+                tailrec fun split32(input: ByteVector, acc: List<ByteVector32> = listOf()): List<ByteVector32> = when {
+                    input.size() == 0 -> acc
+                    else -> split32(input.drop(32), acc + input.take(32).toByteArray().byteVector32())
+                }
+
+                val leaves = split32(control.drop(33))
+                val merkleRoot = leaves.fold(tapleafHash) { a, b ->
+                    Crypto.taggedHash(if (LexicographicalOrdering.isLessThan(a, b)) a.toByteArray() + b.toByteArray() else b.toByteArray() + a.toByteArray(), "TapBranch")
+                }
+                val parity = (control[0].toInt() and 0x01) == 0x01
+                require(Pair(outputKey, parity) == internalKey.outputKey(merkleRoot))
+
+                if (leafVersion == TAPROOT_LEAF_TAPSCRIPT) {
+                    this.context.validationWeightLeft = ScriptWitness.write(witness).size + VALIDATION_WEIGHT_OFFSET
+
+                    tailrec fun hasOpSuccess(it: Iterator<ScriptElt>) : Boolean = when {
+                        !it.hasNext() -> false
+                        isOpSuccess(ScriptEltMapping.opCode(it.next())) -> true
+                        else -> hasOpSuccess(it)
+                    }
+
+                    if (hasOpSuccess(scriptIterator(script.toByteArray()))) {
+                        require(scriptFlag and ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS == 0) { "OP_SUCCESSx reserved for soft-fork upgrades" }
+                        return
+                    }
+                    val finalStack = run(script, stack.dropLast(2).reversed(), SigVersion.SIGVERSION_TAPSCRIPT)
+                    checkFinalStack(finalStack)
+                } else {
+                    require(scriptFlag and ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION == 0) { "Taproot version $leafVersion reserved for soft-fork upgrades" }
+                }*/
             }
           case _
               if (scriptFlag & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM) != 0 =>
             throw new IllegalArgumentException(
-              s"Invalid witness version: $witnessVersion"
+              s"Witness version $witnessVersion reserved for soft-fork upgrades"
             )
           case _ =>
             // Higher version witness scripts return true for future softfork compatibility
-            None
+            return
         }
-
-      stackScript match {
-        case None => // valid
-        case Some((stack, scriptPubKey)) =>
-          stack.foreach(item =>
-            require(
-              item.length <= MaxScriptElementSize,
-              "item is bigger than maximum push size"
-            )
-          )
-
-          val stack1 = run(
-            scriptPubKey,
-            stack.toList.reverse,
-            SigVersion.SIGVERSION_WITNESS_V0
-          )
-          require(stack1.length == 1)
-          require(castToBoolean(stack1.head))
-      }
     }
 
     def verifyScripts(
