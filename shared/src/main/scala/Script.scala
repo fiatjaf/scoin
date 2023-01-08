@@ -753,7 +753,7 @@ object Script {
     }
 
     @tailrec
-    def runInternal(
+    private def runInternal(
       script: List[(ScriptElt,Int)],
       stack: Stack,
       state: State,
@@ -1138,14 +1138,29 @@ object Script {
                 "Cannot perform OP_CHECKSIG on a stack with less than 2 elements"
               )
           }
-        case OP_CHECKSIGVERIFY :: tail =>
-          run(
-            OP_CHECKSIG :: OP_VERIFY :: tail,
+        case (OP_CHECKSIGVERIFY, curPos) :: tail =>
+          runInternal(
+            (OP_CHECKSIG,curPos) :: (OP_VERIFY,curPos) :: tail,
             stack,
             state.copy(opCount = opCount - 1),
             signatureVersion
           )
-        case OP_CHECKMULTISIG :: tail =>
+        case (OP_CHECKSIGADD,_) :: tail =>
+          // OP_CHECKSIGADD is only available in Tapscript
+          require(signatureVersion != SigVersion.SIGVERSION_BASE && signatureVersion != SigVersion.SIGVERSION_WITNESS_V0, "invalid opcode")
+          require(stack.size >= 3, "Cannot perform OP_CHECKSIGADD on a stack with less than 3 elements" )
+          val pubKey = stack(0)
+          val num = decodeNumber(stack(1))
+          val sigBytes = stack(2)
+          val success = checkSignature(pubKey,sigBytes,write(state.scriptCode),signatureVersion, state.codeSeparatorPos)
+          runInternal(
+            tail,
+            (encodeNumber(num + (if (success) 1 else 0))) :: stack.drop(3),
+            state.copy(opCount = state.opCount + 1),
+            signatureVersion
+          )
+        case (OP_CHECKMULTISIG,curPos) :: tail =>
+          require(signatureVersion != SigVersion.SIGVERSION_TAPSCRIPT, s"invalid OP_CHECKMULTISIG operation for SigVersion ${SigVersion.SIGVERSION_TAPSCRIPT}")
           // pop public keys
           val m = decodeNumber(stack.head).toInt
           if (m < 0 || m > 20)
@@ -1187,7 +1202,8 @@ object Script {
             pubKeys,
             sigs,
             Script.write(scriptCode1),
-            signatureVersion
+            signatureVersion,
+            state.codeSeparatorPos
           )
           if (!success && (scriptFlag & SCRIPT_VERIFY_NULLFAIL) != 0) {
             sigs.foreach(sig =>
@@ -1197,574 +1213,578 @@ object Script {
               )
             )
           }
-          run(
+          runInternal(
             tail,
             (if (success) True else False) :: stack4,
             state.copy(opCount = nextOpCount),
             signatureVersion
           )
-        case OP_CHECKMULTISIGVERIFY :: tail =>
-          run(
-            OP_CHECKMULTISIG :: OP_VERIFY :: tail,
+        case (OP_CHECKMULTISIGVERIFY,curPos) :: tail =>
+          runInternal(
+            (OP_CHECKMULTISIG,curPos) :: (OP_VERIFY,curPos) :: tail,
             stack,
             state.copy(opCount = opCount - 1),
             signatureVersion
           )
-        case OP_CODESEPARATOR :: tail =>
-          run(
+        case (OP_CODESEPARATOR,_) :: tail =>
+          runInternal(
             tail,
             stack,
-            state.copy(opCount = opCount + 1, scriptCode = tail),
+            state.copy(opCount = opCount + 1, scriptCode = tail.map(_._1)),
             signatureVersion
           )
-        case OP_DEPTH :: tail =>
-          run(
+        case (OP_DEPTH,_) :: tail =>
+          runInternal(
             tail,
             encodeNumber(stack.length) :: stack,
             state.copy(opCount = opCount + 1),
             signatureVersion
           )
-        case OP_SIZE :: _ if stack.isEmpty =>
+        case (OP_SIZE,_) :: _ if stack.isEmpty =>
           throw new RuntimeException("Cannot run OP_SIZE on an empty stack")
-        case OP_SIZE :: tail =>
-          run(
+        case (OP_SIZE,_) :: tail =>
+          runInternal(
             tail,
             encodeNumber(stack.head.length) :: stack,
             state.copy(opCount = opCount + 1),
             signatureVersion
           )
-        case OP_DROP :: tail =>
-          run(
-            tail,
-            stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_2DROP :: tail =>
-          run(
-            tail,
-            stack.tail.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_DUP :: tail =>
-          run(
-            tail,
-            stack.head :: stack,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_2DUP :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              run(
-                tail,
-                x1 :: x2 :: x1 :: x2 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_2DUP on a stack with less than 2 elements"
-              )
-          }
-        case OP_3DUP :: tail =>
-          stack match {
-            case x1 :: x2 :: x3 :: stacktail =>
-              run(
-                tail,
-                x1 :: x2 :: x3 :: x1 :: x2 :: x3 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_3DUP on a stack with less than 3 elements"
-              )
-          }
-        case OP_EQUAL :: tail =>
-          stack match {
-            case a :: b :: stacktail if a != b =>
-              run(
-                tail,
-                False :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case a :: b :: stacktail =>
-              run(
-                tail,
-                True :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_EQUAL on a stack with less than 2 elements"
-              )
-          }
-        case OP_EQUALVERIFY :: tail =>
-          stack match {
-            case a :: b :: _ if a != b =>
-              throw new RuntimeException(
-                "OP_EQUALVERIFY failed: elements are different"
-              )
-            case a :: b :: stacktail =>
-              run(
-                tail,
-                stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_EQUALVERIFY on a stack with less than 2 elements"
-              )
-          }
-        case OP_FROMALTSTACK :: tail =>
-          run(
-            tail,
-            altstack.head :: stack,
-            state.copy(altstack = altstack.tail),
-            signatureVersion
-          )
-        case OP_HASH160 :: tail =>
-          run(
-            tail,
-            Crypto.hash160(stack.head) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_HASH256 :: tail =>
-          run(
-            tail,
-            Crypto.hash256(stack.head) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_IFDUP :: tail =>
-          stack match {
-            case Nil =>
-              throw new RuntimeException(
-                "Cannot perform OP_IFDUP on an empty stack"
-              )
-            case head :: _ if castToBoolean(head) =>
-              run(
-                tail,
-                head :: stack,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              run(
-                tail,
-                stack,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-          }
-        case OP_LESSTHAN :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x2) < decodeNumber(x1)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_LESSTHAN on a stack with less than 2 elements"
-              )
-          }
-        case OP_LESSTHANOREQUAL :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x2) <= decodeNumber(x1)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_LESSTHANOREQUAL on a stack with less than 2 elements"
-              )
-          }
-        case OP_GREATERTHAN :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x2) > decodeNumber(x1)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_GREATERTHAN on a stack with less than 2 elements"
-              )
-          }
-        case OP_GREATERTHANOREQUAL :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x2) >= decodeNumber(x1)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_GREATERTHANOREQUAL on a stack with less than 2 elements"
-              )
-          }
-        case OP_MAX :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val n1 = decodeNumber(x1)
-              val n2 = decodeNumber(x2)
-              val result = if (n1 > n2) n1 else n2
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_MAX on a stack with less than 2 elements"
-              )
-          }
-        case OP_MIN :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val n1 = decodeNumber(x1)
-              val n2 = decodeNumber(x2)
-              val result = if (n1 < n2) n1 else n2
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_MIN on a stack with less than 2 elements"
-              )
-          }
-        case OP_NEGATE :: tail if stack.isEmpty =>
-          throw new RuntimeException("cannot run OP_NEGATE on am empty stack")
-        case OP_NEGATE :: tail =>
-          run(
-            tail,
-            encodeNumber(-decodeNumber(stack.head)) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_NIP :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              run(
-                tail,
-                x1 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_NIP on a stack with less than 2 elements"
-              )
-          }
-        case OP_NOT :: tail if stack.isEmpty =>
-          throw new RuntimeException("cannot run OP_NOT on am empty stack")
-        case OP_NOT :: tail =>
-          run(
-            tail,
-            encodeNumber(
-              if (decodeNumber(stack.head) == 0) 1 else 0
-            ) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_0NOTEQUAL :: tail if stack.isEmpty =>
-          throw new RuntimeException(
-            "cannot run OP_0NOTEQUAL on am empty stack"
-          )
-        case OP_0NOTEQUAL :: tail =>
-          run(
-            tail,
-            encodeNumber(
-              if (decodeNumber(stack.head) == 0) 0 else 1
-            ) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_NUMEQUAL :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x1) == decodeNumber(x2)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_NUMEQUAL on a stack with less than 2 elements"
-              )
-          }
-        case OP_NUMEQUALVERIFY :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              if (decodeNumber(x1) != decodeNumber(x2))
-                throw new RuntimeException("OP_NUMEQUALVERIFY failed")
-              run(
-                tail,
-                stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_NUMEQUALVERIFY on a stack with less than 2 elements"
-              )
-          }
-        case OP_NUMNOTEQUAL :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = if (decodeNumber(x1) != decodeNumber(x2)) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_NUMNOTEQUAL on a stack with less than 2 elements"
-              )
-          }
-        case OP_OVER :: tail =>
-          stack match {
-            case _ :: x2 :: _ =>
-              run(
-                tail,
-                x2 :: stack,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_OVER on a stack with less than 2 elements"
-              )
-          }
-        case OP_2OVER :: tail =>
-          stack match {
-            case _ :: _ :: x3 :: x4 :: _ =>
-              run(
-                tail,
-                x3 :: x4 :: stack,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_2OVER on a stack with less than 4 elements"
-              )
-          }
-        case OP_PICK :: tail =>
-          stack match {
-            case head :: stacktail =>
-              val n = decodeNumber(head).toInt
-              run(
-                tail,
-                stacktail(n) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_PICK on a stack with less than 1 elements"
-              )
-          }
-        case OP_PUSHDATA(data, code) :: _
-            if ((scriptFlag & SCRIPT_VERIFY_MINIMALDATA) != 0) && !OP_PUSHDATA
-              .isMinimal(data, code) =>
-          throw new RuntimeException("not minimal push")
-        case OP_PUSHDATA(data, _) :: tail =>
-          run(tail, data :: stack, state, signatureVersion)
-        case OP_ROLL :: tail =>
-          stack match {
-            case head :: stacktail =>
-              val n = decodeNumber(head).toInt
-              run(
-                tail,
-                stacktail(n) :: stacktail.take(n) ::: stacktail.takeRight(
-                  stacktail.length - 1 - n
-                ),
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_ROLL on a stack with less than 1 elements"
-              )
-          }
-        case OP_ROT :: tail =>
-          stack match {
-            case x1 :: x2 :: x3 :: stacktail =>
-              run(
-                tail,
-                x3 :: x1 :: x2 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_ROT on a stack with less than 3 elements"
-              )
-          }
-        case OP_2ROT :: tail =>
-          stack match {
-            case x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: stacktail =>
-              run(
-                tail,
-                x5 :: x6 :: x1 :: x2 :: x3 :: x4 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_2ROT on a stack with less than 6 elements"
-              )
-          }
-        case OP_RIPEMD160 :: tail =>
-          run(
-            tail,
-            Crypto.ripemd160(stack.head) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_SHA1 :: tail =>
-          run(
-            tail,
-            Crypto.sha1(stack.head) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_SHA256 :: tail =>
-          run(
-            tail,
-            Crypto.sha256(stack.head) :: stack.tail,
-            state.copy(opCount = opCount + 1),
-            signatureVersion
-          )
-        case OP_SUB :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              val result = decodeNumber(x2) - decodeNumber(x1)
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "cannot run OP_SUB on a stack of less than 2 elements"
-              )
-          }
+        // too lazy to change all the other case statements, so wrapping the reamining ones
+        // in an outer match statement. Probably should have done it this way from the start.
+        case (opcode, curPos) :: indexedTail => opcode :: indexedTail.map(_._1) match {
+          case OP_DROP :: tail =>
+            runInternal(
+              indexedTail,
+              stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_2DROP :: tail =>
+            runInternal(
+              indexedTail,
+              stack.tail.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_DUP :: tail =>
+            runInternal(
+              indexedTail,
+              stack.head :: stack,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_2DUP :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x1 :: x2 :: x1 :: x2 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_2DUP on a stack with less than 2 elements"
+                )
+            }
+          case OP_3DUP :: tail =>
+            stack match {
+              case x1 :: x2 :: x3 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x1 :: x2 :: x3 :: x1 :: x2 :: x3 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_3DUP on a stack with less than 3 elements"
+                )
+            }
+          case OP_EQUAL :: tail =>
+            stack match {
+              case a :: b :: stacktail if a != b =>
+                runInternal(
+                  indexedTail,
+                  False :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case a :: b :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  True :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_EQUAL on a stack with less than 2 elements"
+                )
+            }
+          case OP_EQUALVERIFY :: tail =>
+            stack match {
+              case a :: b :: _ if a != b =>
+                throw new RuntimeException(
+                  "OP_EQUALVERIFY failed: elements are different"
+                )
+              case a :: b :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_EQUALVERIFY on a stack with less than 2 elements"
+                )
+            }
+          case OP_FROMALTSTACK :: tail =>
+            runInternal(
+              indexedTail,
+              altstack.head :: stack,
+              state.copy(altstack = altstack.tail),
+              signatureVersion
+            )
+          case OP_HASH160 :: tail =>
+            runInternal(
+              indexedTail,
+              Crypto.hash160(stack.head) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_HASH256 :: tail =>
+            runInternal(
+              indexedTail,
+              Crypto.hash256(stack.head) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_IFDUP :: tail =>
+            stack match {
+              case Nil =>
+                throw new RuntimeException(
+                  "Cannot perform OP_IFDUP on an empty stack"
+                )
+              case head :: _ if castToBoolean(head) =>
+                runInternal(
+                  indexedTail,
+                  head :: stack,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                runInternal(
+                  indexedTail,
+                  stack,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+            }
+          case OP_LESSTHAN :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x2) < decodeNumber(x1)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_LESSTHAN on a stack with less than 2 elements"
+                )
+            }
+          case OP_LESSTHANOREQUAL :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x2) <= decodeNumber(x1)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_LESSTHANOREQUAL on a stack with less than 2 elements"
+                )
+            }
+          case OP_GREATERTHAN :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x2) > decodeNumber(x1)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_GREATERTHAN on a stack with less than 2 elements"
+                )
+            }
+          case OP_GREATERTHANOREQUAL :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x2) >= decodeNumber(x1)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_GREATERTHANOREQUAL on a stack with less than 2 elements"
+                )
+            }
+          case OP_MAX :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val n1 = decodeNumber(x1)
+                val n2 = decodeNumber(x2)
+                val result = if (n1 > n2) n1 else n2
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_MAX on a stack with less than 2 elements"
+                )
+            }
+          case OP_MIN :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val n1 = decodeNumber(x1)
+                val n2 = decodeNumber(x2)
+                val result = if (n1 < n2) n1 else n2
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_MIN on a stack with less than 2 elements"
+                )
+            }
+          case OP_NEGATE :: tail if stack.isEmpty =>
+            throw new RuntimeException("cannot run OP_NEGATE on am empty stack")
+          case OP_NEGATE :: tail =>
+            runInternal(
+              indexedTail,
+              encodeNumber(-decodeNumber(stack.head)) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_NIP :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x1 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_NIP on a stack with less than 2 elements"
+                )
+            }
+          case OP_NOT :: tail if stack.isEmpty =>
+            throw new RuntimeException("cannot run OP_NOT on am empty stack")
+          case OP_NOT :: tail =>
+            runInternal(
+              indexedTail,
+              encodeNumber(
+                if (decodeNumber(stack.head) == 0) 1 else 0
+              ) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_0NOTEQUAL :: tail if stack.isEmpty =>
+            throw new RuntimeException(
+              "cannot run OP_0NOTEQUAL on am empty stack"
+            )
+          case OP_0NOTEQUAL :: tail =>
+            runInternal(
+              indexedTail,
+              encodeNumber(
+                if (decodeNumber(stack.head) == 0) 0 else 1
+              ) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_NUMEQUAL :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x1) == decodeNumber(x2)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_NUMEQUAL on a stack with less than 2 elements"
+                )
+            }
+          case OP_NUMEQUALVERIFY :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                if (decodeNumber(x1) != decodeNumber(x2))
+                  throw new RuntimeException("OP_NUMEQUALVERIFY failed")
+                runInternal(
+                  indexedTail,
+                  stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_NUMEQUALVERIFY on a stack with less than 2 elements"
+                )
+            }
+          case OP_NUMNOTEQUAL :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = if (decodeNumber(x1) != decodeNumber(x2)) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_NUMNOTEQUAL on a stack with less than 2 elements"
+                )
+            }
+          case OP_OVER :: tail =>
+            stack match {
+              case _ :: x2 :: _ =>
+                runInternal(
+                  indexedTail,
+                  x2 :: stack,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_OVER on a stack with less than 2 elements"
+                )
+            }
+          case OP_2OVER :: tail =>
+            stack match {
+              case _ :: _ :: x3 :: x4 :: _ =>
+                runInternal(
+                  indexedTail,
+                  x3 :: x4 :: stack,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_2OVER on a stack with less than 4 elements"
+                )
+            }
+          case OP_PICK :: tail =>
+            stack match {
+              case head :: stacktail =>
+                val n = decodeNumber(head).toInt
+                runInternal(
+                  indexedTail,
+                  stacktail(n) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_PICK on a stack with less than 1 elements"
+                )
+            }
+          case OP_PUSHDATA(data, code) :: _
+              if ((scriptFlag & SCRIPT_VERIFY_MINIMALDATA) != 0) && !OP_PUSHDATA
+                .isMinimal(data, code) =>
+            throw new RuntimeException("not minimal push")
+          case OP_PUSHDATA(data, _) :: tail =>
+            runInternal(indexedTail, data :: stack, state, signatureVersion)
+          case OP_ROLL :: tail =>
+            stack match {
+              case head :: stacktail =>
+                val n = decodeNumber(head).toInt
+                runInternal(
+                  indexedTail,
+                  stacktail(n) :: stacktail.take(n) ::: stacktail.takeRight(
+                    stacktail.length - 1 - n
+                  ),
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_ROLL on a stack with less than 1 elements"
+                )
+            }
+          case OP_ROT :: tail =>
+            stack match {
+              case x1 :: x2 :: x3 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x3 :: x1 :: x2 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_ROT on a stack with less than 3 elements"
+                )
+            }
+          case OP_2ROT :: tail =>
+            stack match {
+              case x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x5 :: x6 :: x1 :: x2 :: x3 :: x4 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_2ROT on a stack with less than 6 elements"
+                )
+            }
+          case OP_RIPEMD160 :: tail =>
+            runInternal(
+              indexedTail,
+              Crypto.ripemd160(stack.head) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_SHA1 :: tail =>
+            runInternal(
+              indexedTail,
+              Crypto.sha1(stack.head) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_SHA256 :: tail =>
+            runInternal(
+              indexedTail,
+              Crypto.sha256(stack.head) :: stack.tail,
+              state.copy(opCount = opCount + 1),
+              signatureVersion
+            )
+          case OP_SUB :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                val result = decodeNumber(x2) - decodeNumber(x1)
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "cannot run OP_SUB on a stack of less than 2 elements"
+                )
+            }
 
-        case OP_SWAP :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              run(
-                tail,
-                x2 :: x1 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_SWAP on a stack with less than 2 elements"
-              )
-          }
-        case OP_2SWAP :: tail =>
-          stack match {
-            case x1 :: x2 :: x3 :: x4 :: stacktail =>
-              run(
-                tail,
-                x3 :: x4 :: x1 :: x2 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_2SWAP on a stack with less than 4 elements"
-              )
-          }
-        case OP_TOALTSTACK :: tail =>
-          run(
-            tail,
-            stack.tail,
-            state.copy(altstack = stack.head :: altstack),
-            signatureVersion
-          )
-        case OP_TUCK :: tail =>
-          stack match {
-            case x1 :: x2 :: stacktail =>
-              run(
-                tail,
-                x1 :: x2 :: x1 :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_TUCK on a stack with less than 2 elements"
-              )
-          }
-        case OP_VERIFY :: tail =>
-          stack match {
-            case Nil =>
-              throw new RuntimeException(
-                "cannot run OP_VERIFY on an empty stack"
-              )
-            case head :: _ if !castToBoolean(head) =>
-              throw new RuntimeException("OP_VERIFY failed")
-            case _ :: stacktail =>
-              run(
-                tail,
-                stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-          }
-        case OP_WITHIN :: tail =>
-          stack match {
-            case encMax :: encMin :: encN :: stacktail =>
-              val max = decodeNumber(encMax)
-              val min = decodeNumber(encMin)
-              val n = decodeNumber(encN)
-              val result = if (n >= min && n < max) 1 else 0
-              run(
-                tail,
-                encodeNumber(result) :: stacktail,
-                state.copy(opCount = opCount + 1),
-                signatureVersion
-              )
-            case _ =>
-              throw new RuntimeException(
-                "Cannot perform OP_WITHIN on a stack with less than 3 elements"
-              )
-          }
-        case _ => throw new MatchError(script)
+          case OP_SWAP :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x2 :: x1 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_SWAP on a stack with less than 2 elements"
+                )
+            }
+          case OP_2SWAP :: tail =>
+            stack match {
+              case x1 :: x2 :: x3 :: x4 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x3 :: x4 :: x1 :: x2 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_2SWAP on a stack with less than 4 elements"
+                )
+            }
+          case OP_TOALTSTACK :: tail =>
+            runInternal(
+              indexedTail,
+              stack.tail,
+              state.copy(altstack = stack.head :: altstack),
+              signatureVersion
+            )
+          case OP_TUCK :: tail =>
+            stack match {
+              case x1 :: x2 :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  x1 :: x2 :: x1 :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_TUCK on a stack with less than 2 elements"
+                )
+            }
+          case OP_VERIFY :: tail =>
+            stack match {
+              case Nil =>
+                throw new RuntimeException(
+                  "cannot run OP_VERIFY on an empty stack"
+                )
+              case head :: _ if !castToBoolean(head) =>
+                throw new RuntimeException("OP_VERIFY failed")
+              case _ :: stacktail =>
+                runInternal(
+                  indexedTail,
+                  stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+            }
+          case OP_WITHIN :: tail =>
+            stack match {
+              case encMax :: encMin :: encN :: stacktail =>
+                val max = decodeNumber(encMax)
+                val min = decodeNumber(encMin)
+                val n = decodeNumber(encN)
+                val result = if (n >= min && n < max) 1 else 0
+                runInternal(
+                  indexedTail,
+                  encodeNumber(result) :: stacktail,
+                  state.copy(opCount = opCount + 1),
+                  signatureVersion
+                )
+              case _ =>
+                throw new RuntimeException(
+                  "Cannot perform OP_WITHIN on a stack with less than 3 elements"
+                )
+            }
+          case _ => throw new MatchError(script)
+        }
       }
     }
 
