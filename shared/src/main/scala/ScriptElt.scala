@@ -267,6 +267,7 @@ object ScriptElt {
     0xb7 -> OP_NOP8,
     0xb8 -> OP_NOP9,
     0xb9 -> OP_NOP10,
+    0xba -> OP_CHECKSIGADD,
     0xfa -> OP_SMALLINTEGER,
     0xff -> OP_INVALIDOPCODE)
 
