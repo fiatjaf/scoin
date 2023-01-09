@@ -182,112 +182,112 @@ object TaprootTest extends TestSuite {
             
         }
 
-        /*test("create pay-to-script transactions") {
+        test("create pay-to-script transactions") {
             // we create 3 private keys, and simple scripts: pay to key #1, pay to key #2, pay to key #3
-        val privs = arrayOf(
-            PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010101")),
-            PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010102")),
-            PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010103"))
-        )
-        val scripts = privs.map { listOf(OP_PUSHDATA(XonlyPublicKey(it.publicKey()).value), OP_CHECKSIG) }
-        val leaves = scripts.mapIndexed { idx, script -> ScriptTree.Leaf(ScriptLeaf(idx, Script.write(script).byteVector(), Script.TAPROOT_LEAF_TAPSCRIPT)) }
-        //     root
-        //    /   \
-        //  /  \   #3
-        // #1  #2
-        val scriptTree = ScriptTree.Branch(
-            ScriptTree.Branch(leaves[0], leaves[1]),
-            leaves[2]
-        )
-        val merkleRoot = ScriptTree.hash(scriptTree)
-
-        // we use key #1 as our internal key
-        val internalPubkey = XonlyPublicKey(privs[0].publicKey())
-        val (tweakedKey, parity) = internalPubkey.outputKey(merkleRoot)
-
-        // this is the tapscript we send funds to
-        val script = Script.write(listOf(OP_1, OP_PUSHDATA(tweakedKey.value))).byteVector()
-        val bip350Address = Bech32.encodeWitnessAddress("bcrt", 1.toByte(), tweakedKey.value.toByteArray())
-
-        val fundingTx = Transaction(version = 2, txIn = listOf(), txOut = listOf(TxOut(Satoshi(1000000), listOf(OP_1, OP_PUSHDATA(tweakedKey)))), lockTime = 0)
-
-        // output #1 is the one we want to spend
-        assertEquals(fundingTx.txOut[0].publicKeyScript, script)
-        assertEquals(addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, bip350Address), listOf(OP_1, OP_PUSHDATA(tweakedKey.value)))
-
-        // spending with the "taproot" path: no need to provide any script
-        val tx = run {
-            val tmp = Transaction(
-                version = 2,
-                txIn = listOf(TxIn(OutPoint(fundingTx, 0), TxIn.SEQUENCE_FINAL)),
-                txOut = listOf(TxOut(fundingTx.txOut[0].amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
-                lockTime = 0
+            val privs = Array(
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010101")),
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010102")),
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010103"))
             )
-            val hash = hashForSigningSchnorr(tmp, 0, listOf(fundingTx.txOut[0]), SigHash.SIGHASH_DEFAULT, 0, null)
-            // we still need to know the merkle root of the tapscript tree
-            val sig = Crypto.signSchnorr(hash, privs[0], merkleRoot)
-            tmp.updateWitness(0, ScriptWitness(listOf(sig)))
-
-        }
-        Transaction.correctlySpends(tx, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
-
-        // spending with script #1
-        val tx1 = run {
-            val tmp = Transaction(
-                version = 2,
-                txIn = listOf(TxIn(OutPoint(fundingTx, 0), TxIn.SEQUENCE_FINAL)),
-                txOut = listOf(TxOut(fundingTx.txOut[0].amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
-                lockTime = 0
+            val scripts = privs.map { it => List(OP_PUSHDATA(XOnlyPublicKey(it.publicKey)), OP_CHECKSIG) }
+            val leaves = scripts.zipWithIndex.map{ case (script, idx) => ScriptTree.Leaf(ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)) }
+            //     root
+            //    /   \
+            //  /  \   #3
+            // #1  #2
+            val scriptTree = ScriptTree.Branch(
+                ScriptTree.Branch(leaves(0), leaves(1)),
+                leaves(2)
             )
-            // to re-compute the merkle root we need to provide leaves #2 and #3
-            val controlBlock = byteArrayOf((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte()) +
-                    internalPubkey.value.toByteArray() +
-                    ScriptTree.hash(leaves[1]).toByteArray() +
-                    ScriptTree.hash(leaves[2]).toByteArray()
-            val hash = hashForSigningSchnorr(tmp, 0, listOf(fundingTx.txOut[0]), SigHash.SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, null, ScriptTree.hash(leaves[0]), 0xFFFFFFFFL)
-            val sig = Crypto.signSchnorr(hash, privs[0], null)
-            tmp.updateWitness(0, ScriptWitness(listOf(sig, Script.write(scripts[0]).byteVector(), controlBlock.byteVector())))
-        }
-        Transaction.correctlySpends(tx1, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            val merkleRoot = ScriptTree.hash(scriptTree)
 
-        // spending with script #2
-        // it's bascically the same as for key #1
-        val tx2 = run {
-            val tmp = Transaction(
-                version = 2,
-                txIn = listOf(TxIn(OutPoint(fundingTx, 0), TxIn.SEQUENCE_FINAL)),
-                txOut = listOf(TxOut(fundingTx.txOut[0].amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
-                lockTime = 0
-            )
-            // to re-compute the merkle root we need to provide leaves #1 and #3
-            val controlBlock = byteArrayOf((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte()) +
-                    internalPubkey.value.toByteArray() +
-                    ScriptTree.hash(leaves[0]).toByteArray() +
-                    ScriptTree.hash(leaves[2]).toByteArray()
-            val hash = hashForSigningSchnorr(tmp, 0, listOf(fundingTx.txOut[0]), SigHash.SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, null, ScriptTree.hash(leaves[1]), 0xFFFFFFFFL)
-            val sig = Crypto.signSchnorr(hash, privs[1], null)
-            tmp.updateWitness(0, ScriptWitness(listOf(sig, Script.write(scripts[1]).byteVector(), controlBlock.byteVector())))
-        }
-        Transaction.correctlySpends(tx2, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            // we use key #1 as our internal key
+            val internalPubkey = XOnlyPublicKey(privs(0).publicKey)
+            val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
+            val parity = tweakedKey.publicKey.isOdd
 
-        // spending with script #3
-        val tx3 = run {
-            val tmp = Transaction(
-                version = 2,
-                txIn = listOf(TxIn(OutPoint(fundingTx, 0), TxIn.SEQUENCE_FINAL)),
-                txOut = listOf(TxOut(fundingTx.txOut[0].amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
-                lockTime = 0
-            )
-            // to re-compute the merkle root we need to provide branch(#1, #2)
-            val controlBlock = byteArrayOf((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte()) +
-                    internalPubkey.value.toByteArray() +
-                    ScriptTree.hash(ScriptTree.Branch(leaves[0], leaves[1])).toByteArray()
-            val hash = hashForSigningSchnorr(tmp, 0, listOf(fundingTx.txOut[0]), SigHash.SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, null, ScriptTree.hash(leaves[2]), 0xFFFFFFFFL)
-            val sig = Crypto.signSchnorr(hash, privs[2], null)
-            tmp.updateWitness(0, ScriptWitness(listOf(sig, Script.write(scripts[2]).byteVector(), controlBlock.byteVector())))
+            // this is the tapscript we send funds to
+            val script = Script.write(List(OP_1, OP_PUSHDATA(tweakedKey.value)))
+            val bip350Address = Bech32.encodeWitnessAddress("bcrt", 1.toByte, tweakedKey.value)
+
+            val fundingTx = Transaction(version = 2, txIn = List.empty, txOut = List(TxOut(Satoshi(1000000), List(OP_1, OP_PUSHDATA(tweakedKey)))), lockTime = 0)
+
+            // output #1 is the one we want to spend
+            assertEquals(fundingTx.txOut(0).publicKeyScript, script)
+            assertEquals(addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, bip350Address), List(OP_1, OP_PUSHDATA(tweakedKey.value)))
+            
+            // spending with the "taproot" path: no need to provide any script
+            val tx = {
+                val tmp = Transaction(
+                    version = 2,
+                    txIn = List(TxIn(OutPoint(fundingTx, 0), signatureScript = ByteVector.empty, TxIn.SEQUENCE_FINAL)),
+                    txOut = List(TxOut(fundingTx.txOut(0).amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
+                    lockTime = 0
+                )
+                val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, 0, None)
+                // we still need to know the merkle root of the tapscript tree
+                val sig = Crypto.signSchnorrWithTweak(hash, privs(0), Some(merkleRoot))
+                tmp.updateWitness(0, ScriptWitness(List(sig)))
+            }
+            Transaction.correctlySpends(tx, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            
+            // spending with script #1
+            val tx1 = {
+                val tmp = Transaction(
+                    version = 2,
+                    txIn = List(TxIn(OutPoint(fundingTx, 0), signatureScript = ByteVector.empty, TxIn.SEQUENCE_FINAL)),
+                    txOut = List(TxOut(fundingTx.txOut(0).amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
+                    lockTime = 0
+                )
+                // to re-compute the merkle root we need to provide leaves #2 and #3
+                val controlBlock = ByteVector((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte) ++
+                        internalPubkey.value ++
+                        ScriptTree.hash(leaves(1)) ++
+                        ScriptTree.hash(leaves(2))
+                val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, None, Some(ScriptTree.hash(leaves(0))), 0xFFFFFFFFL)
+                val sig = Crypto.signSchnorrWithTweak(hash, privs(0), None)
+                tmp.updateWitness(0, ScriptWitness(List(sig, Script.write(scripts(0)), controlBlock)))
+            }
+            Transaction.correctlySpends(tx1, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            
+            // spending with script #2
+            // it's bascically the same as for key #1
+            val tx2 = {
+                val tmp = Transaction(
+                    version = 2,
+                    txIn = List(TxIn(OutPoint(fundingTx, 0), signatureScript = ByteVector.empty, sequence = TxIn.SEQUENCE_FINAL)),
+                    txOut = List(TxOut(fundingTx.txOut(0).amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
+                    lockTime = 0
+                )
+                // to re-compute the merkle root we need to provide leaves #1 and #3
+                val controlBlock = ByteVector((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte) ++
+                        internalPubkey.value ++
+                        ScriptTree.hash(leaves(0)) ++
+                        ScriptTree.hash(leaves(2))
+                val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, None, Some(ScriptTree.hash(leaves(1))), 0xFFFFFFFFL)
+                val sig = Crypto.signSchnorrWithTweak(hash, privs(1), None)
+                tmp.updateWitness(0, ScriptWitness(List(sig, Script.write(scripts(1)), controlBlock)))
+            }
+            Transaction.correctlySpends(tx2, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            
+            // spending with script #3
+            val tx3 = {
+                val tmp = Transaction(
+                    version = 2,
+                    txIn = List(TxIn(OutPoint(fundingTx, 0), signatureScript = ByteVector.empty, TxIn.SEQUENCE_FINAL)),
+                    txOut = List(TxOut(fundingTx.txOut(0).amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
+                    lockTime = 0
+                )
+                // to re-compute the merkle root we need to provide branch(#1, #2)
+                val controlBlock = ByteVector((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0))) ++
+                        internalPubkey.value ++ 
+                        ScriptTree.hash(ScriptTree.Branch(leaves(0), leaves(1)))
+                val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, None, Some(ScriptTree.hash(leaves(2))), 0xFFFFFFFFL)
+                val sig = Crypto.signSchnorr(hash, privs(2), None)
+                tmp.updateWitness(0, ScriptWitness(List(sig, Script.write(scripts(2)), controlBlock)))
+            }
+            Transaction.correctlySpends(tx3, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
         }
-        Transaction.correctlySpends(tx3, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
-        }*/
     }
 
     // helper function so we can copy/paste easier from ACINQ's test code

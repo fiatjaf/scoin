@@ -1863,7 +1863,15 @@ object Script {
                 val sig = witness.stack.head
                 val pub = XOnlyPublicKey(ByteVector32(program))
                 val hashType = sigHashType(sig)
-                val hash = Transaction.hashForSigningSchnorr(context.tx, context.inputIndex, context.prevouts, hashType, SigVersion.SIGVERSION_TAPROOT)
+                val hash = Transaction.hashForSigningSchnorr(
+                  tx = context.tx, 
+                  inputIndex = context.inputIndex, 
+                  inputs = context.prevouts, 
+                  sighashType = hashType, 
+                  sigVersion = SigVersion.SIGVERSION_TAPROOT,
+                  annex = context.annex,
+                  tapleafHash = None
+                )
                 require(Crypto.verifySignatureSchnorr(ByteVector64(sig.take(64)), hash, pub)," invalid Schnorr signature ")
                 return
             } else {
