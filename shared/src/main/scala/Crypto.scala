@@ -558,20 +558,6 @@ object Crypto extends CryptoPlatform {
     * @return
     */
   def verifySignatureSchnorr(
-      data: ByteVector32,
-      signature: ByteVector64,
-      publicKey: XOnlyPublicKey
-  ): Boolean =
-    verifySignatureSchnorrImpl(data, signature, publicKey)
-
-  /** Verify a BIP340 schnorr signature
-    *
-    * @param data
-    * @param signature
-    * @param publicKey
-    * @return
-    */
-  def verifySignatureSchnorr(
       signature: ByteVector64,
       data: ByteVector32,
       publicKey: XOnlyPublicKey

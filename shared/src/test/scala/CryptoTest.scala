@@ -174,7 +174,7 @@ object CryptoTest extends TestSuite {
         "F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9" == pubkey.toHex
           .toUpperCase()
       )
-      assert(Crypto.verifySignatureSchnorr(msg, sig, pubkey))
+      assert(Crypto.verifySignatureSchnorr(sig, msg, pubkey))
     }
   }
 }
