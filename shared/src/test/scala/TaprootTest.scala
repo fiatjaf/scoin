@@ -245,7 +245,7 @@ object TaprootTest extends TestSuite {
                         ScriptTree.hash(leaves(1)) ++
                         ScriptTree.hash(leaves(2))
                 val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, None, Some(ScriptTree.hash(leaves(0))), 0xFFFFFFFFL)
-                val sig = Crypto.signSchnorrWithTweak(hash, privs(0), None)
+                val sig = Crypto.signSchnorr(hash, privs(0), None)
                 tmp.updateWitness(0, ScriptWitness(List(sig, Script.write(scripts(0)), controlBlock)))
             }
             Transaction.correctlySpends(tx1, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
@@ -265,7 +265,7 @@ object TaprootTest extends TestSuite {
                         ScriptTree.hash(leaves(0)) ++
                         ScriptTree.hash(leaves(2))
                 val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, None, Some(ScriptTree.hash(leaves(1))), 0xFFFFFFFFL)
-                val sig = Crypto.signSchnorrWithTweak(hash, privs(1), None)
+                val sig = Crypto.signSchnorr(hash, privs(1), None)
                 tmp.updateWitness(0, ScriptWitness(List(sig, Script.write(scripts(1)), controlBlock)))
             }
             Transaction.correctlySpends(tx2, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
