@@ -175,6 +175,9 @@ object Script {
   // Validation weight per passing signature (Tapscript only, see BIP 342).
   val VALIDATION_WEIGHT_PER_SIGOP_PASSED: Int = 50
 
+  // How much weight budget is added to the witness size (Tapscript only, see BIP 342).
+  val VALIDATION_WEIGHT_OFFSET: Int = 50
+
   def isOpSuccess(opcode: Int): Boolean = {
       opcode == 80 || opcode == 98 || 
       (126 to 129).contains(opcode) ||
@@ -1864,54 +1867,58 @@ object Script {
                 require(Crypto.verifySignatureSchnorr(ByteVector64(sig.take(64)), hash, pub)," invalid Schnorr signature ")
                 return
             } else {
-                // FIXME: implement tapscript
-                ???
-                /*val outputKey = XonlyPublicKey(program.byteVector32())
-                val script = stack[stack.size - 2]
-                val control = stack[stack.size - 1]
-                require((control.size() - 33).mod(32) == 0) { "invalid control block size" }
-                require((control.size() - 33) / 32 in 0..128) { "invalid control block size" }
-                val leafVersion = control[0].toInt() and TAPROOT_LEAF_MASK
-                val internalKey = XonlyPublicKey(control.slice(1, 33).toByteArray().byteVector32())
+            // Tapscript spending
+                val outputKey = XOnlyPublicKey(ByteVector32(program))
+                val script = stack(stack.size - 2)
+                val control = stack(stack.size - 1)
+                require((control.size - 33) % 32 == 0, "invalid control block size" )
+                require((0 to 128).contains((control.size - 33) / 32), "invalid control block size" )
+                val leafVersion = control(0).toInt & TAPROOT_LEAF_MASK
+                val internalKey = XOnlyPublicKey(ByteVector32(control.slice(1, 33)))
                 val tapleafHash = run {
-                    val buffer = ByteArrayOutput()
+                    val buffer = new ByteArrayOutputStream()
                     buffer.write(leafVersion)
-                    BtcSerializer.writeScript(script, buffer)
-                    Crypto.taggedHash(buffer.toByteArray(), "TapLeaf")
-                }
-                this.context.tapleafHash = tapleafHash
+                    Protocol.writeScript(script.toArray, buffer)
+                    Crypto.taggedHash(ByteVector(buffer.toByteArray), "TapLeaf")
+                }.head
+                context.tapleafHash = Some(ByteVector32(tapleafHash)) // UNSAFE!! FIXME! 
 
                 // split input buffer into 32 bytes chunks (input buffer size MUST be a multiple of 32 !!)
-                tailrec fun split32(input: ByteVector, acc: List<ByteVector32> = listOf()): List<ByteVector32> = when {
-                    input.size() == 0 -> acc
-                    else -> split32(input.drop(32), acc + input.take(32).toByteArray().byteVector32())
+                @tailrec
+                def split32(input: ByteVector, acc: List[ByteVector32] = List.empty): List[ByteVector32] = {
+                    if (input.size == 0) 
+                      acc 
+                    else 
+                      split32(input.drop(32), acc.appended(ByteVector32(input.take(32)))) // note: might not have tranlated this line from kotlin correctly
                 }
-
                 val leaves = split32(control.drop(33))
-                val merkleRoot = leaves.fold(tapleafHash) { a, b ->
-                    Crypto.taggedHash(if (LexicographicalOrdering.isLessThan(a, b)) a.toByteArray() + b.toByteArray() else b.toByteArray() + a.toByteArray(), "TapBranch")
+                val merkleRoot = leaves.foldLeft(tapleafHash) { 
+                  case(a, b) =>
+                    Crypto.taggedHash(if (LexicographicalOrdering.isLessThan(a, b)) a ++ b else b ++ a, "TapBranch")
                 }
-                val parity = (control[0].toInt() and 0x01) == 0x01
-                require(Pair(outputKey, parity) == internalKey.outputKey(merkleRoot))
+                val parity = (control(0).toInt & 0x01) == 0x01
+                require(outputKey == internalKey.outputKey(Some(ByteVector32(merkleRoot))))
+                require(parity == outputKey.publicKey.isOdd)
 
                 if (leafVersion == TAPROOT_LEAF_TAPSCRIPT) {
-                    this.context.validationWeightLeft = ScriptWitness.write(witness).size + VALIDATION_WEIGHT_OFFSET
+                    context.validationWeightLeft = Some(ScriptWitness.write(witness).size + VALIDATION_WEIGHT_OFFSET).map(_.toInt) // UNSAFE!! FIXME
 
-                    tailrec fun hasOpSuccess(it: Iterator<ScriptElt>) : Boolean = when {
-                        !it.hasNext() -> false
-                        isOpSuccess(ScriptEltMapping.opCode(it.next())) -> true
-                        else -> hasOpSuccess(it)
+                    @tailrec
+                    def hasOpSuccess(it: Iterator[ScriptElt]) : Boolean = it match {
+                        case _ if !it.hasNext => false
+                        case _ if isOpSuccess(ScriptElt.opCode(it.next())) => true
+                        case _ => hasOpSuccess(it)
                     }
 
-                    if (hasOpSuccess(scriptIterator(script.toByteArray()))) {
-                        require(scriptFlag and ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS == 0) { "OP_SUCCESSx reserved for soft-fork upgrades" }
+                    if (hasOpSuccess(scriptIterator(script))) {
+                        require((scriptFlag & ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_OP_SUCCESS) == 0,"OP_SUCCESSx reserved for soft-fork upgrades" )
                         return
                     }
-                    val finalStack = run(script, stack.dropLast(2).reversed(), SigVersion.SIGVERSION_TAPSCRIPT)
+                    val finalStack = run(script, stack.dropRight(2).reverse.toList, SigVersion.SIGVERSION_TAPSCRIPT)
                     checkFinalStack(finalStack)
                 } else {
-                    require(scriptFlag and ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION == 0) { "Taproot version $leafVersion reserved for soft-fork upgrades" }
-                }*/
+                    require((scriptFlag & ScriptFlags.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_TAPROOT_VERSION) == 0,"Taproot version $leafVersion reserved for soft-fork upgrades")
+                }
             }
           case _
               if (scriptFlag & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM) != 0 =>
@@ -1968,10 +1975,10 @@ object Script {
           ssig
         )
       ) throw new RuntimeException("signature script is not PUSH-only")
-      val stack = run(ssig)
+      val stack = run(scriptSig,stack = List.empty[ByteVector], signatureVersion = 0)
 
       val spub = Script.parse(scriptPubKey)
-      val stack0 = run(spub, stack)
+      val stack0 = run(scriptPubKey, stack, signatureVersion = 0)
       require(
         stack0.nonEmpty,
         "Script verification failed, stack should not be empty"
@@ -1992,7 +1999,7 @@ object Script {
             hadWitness = true
             val witnessVersion = simpleValue(op)
             require(ssig.isEmpty, "Malleated segwit script")
-            verifyWitnessProgram(witness, witnessVersion, program)
+            verifyWitnessProgram(witness, witnessVersion, program, isP2sh = false)
             stack0.take(1)
           case _ => stack0
         }
@@ -2029,11 +2036,11 @@ object Script {
               case op :: OP_PUSHDATA(program, _) :: Nil
                   if isSimpleValue(
                     op
-                  ) && program.length >= 2 && program.length <= 32 =>
+                  ) && program.length >= 2 && program.length <= 40 =>
                 hadWitness = true
                 val witnessVersion = simpleValue(op)
                 // require(ssig.isEmpty, "Malleated segwit script")
-                verifyWitnessProgram(witness, witnessVersion, program)
+                verifyWitnessProgram(witness, witnessVersion, program, isP2sh = true)
                 stackp2sh.take(1)
               case _ => stackp2sh
             }
