@@ -7,6 +7,9 @@ import scoin.DeterministicWallet
 import scoin.DeterministicWallet.KeyPath
 import scoin.Crypto.XOnlyPublicKey
 import scoin.Crypto.PrivateKey
+import scoin.Crypto.PublicKey
+import scala.util.Failure
+import scala.util.Success
 
 object TaprootTest extends TestSuite {
     // https://github.com/ACINQ/bitcoin-kmp/pull/40/commits/fecb238fcc41aea9be48a12e3cfaa87c35bf960b#diff-ff1783827538d549c00a3f880a3aadba3523737a3c110fbe6634ccad4b6d2354
@@ -117,11 +120,11 @@ object TaprootTest extends TestSuite {
             Transaction.correctlySpends(tx, inputs, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
         }
 
-        /*test("use OP_CHECKSIGADD to implement multisig") {
+        test("use OP_CHECKSIGADD to implement multisig") {
             val privs = Array(
-                PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010101")),
-                PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010102")),
-                PrivateKey(ByteVector32("0101010101010101010101010101010101010101010101010101010101010103"))
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010101")),
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010102")),
+                PrivateKey(ByteVector32.fromValidHex("0101010101010101010101010101010101010101010101010101010101010103"))
             )
 
             // we want 2 good signatures out of 3
@@ -133,49 +136,51 @@ object TaprootTest extends TestSuite {
             )
 
             // simple script tree with a single element
-            val scriptTree = ScriptTree.Leaf(ScriptLeaf(0, Script.write(script).byteVector(), Script.TAPROOT_LEAF_TAPSCRIPT))
+            val scriptTree = ScriptTree.Leaf(ScriptLeaf(0, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT))
             val merkleRoot = ScriptTree.hash(scriptTree)
             // we choose a pubkey that does not have a corresponding private key: our funding tx cannot only by spend through the script path, not the key path
-            /*val internalPubkey = XOnlyPublicKey(PublicKey.fromHex("0x0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"))
-            val (tweakedKey, parity) = internalPubkey.outputKey(merkleRoot)
-
+            val internalPubkey = XOnlyPublicKey(PublicKey(ByteVector.fromValidHex("0x0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")))
+            val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
+            val parity = tweakedKey.publicKey.isOdd
+            
             // funding tx sends to our tapscript
-            val fundingTx = Transaction(version = 2, txIn = listOf(), txOut = listOf(TxOut(Satoshi(1000000), listOf(OP_1, OP_PUSHDATA(tweakedKey)))), lockTime = 0)
-
+            val fundingTx = Transaction(version = 2, txIn = List.empty, txOut = List(TxOut(Satoshi(1000000), List(OP_1, OP_PUSHDATA(tweakedKey)))), lockTime = 0)
+            
             // create an unsigned transaction
             val tmp = Transaction(
                 version = 2,
-                txIn = listOf(TxIn(OutPoint(fundingTx, 0), TxIn.SEQUENCE_FINAL)),
-                txOut = listOf(TxOut(fundingTx.txOut[0].amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
+                txIn = List(TxIn(OutPoint(fundingTx, 0), signatureScript = ByteVector.empty, TxIn.SEQUENCE_FINAL, witness = ScriptWitness.empty)),
+                txOut = List(TxOut(fundingTx.txOut(0).amount - Satoshi(5000), addressToPublicKeyScript(Block.RegtestGenesisBlock.hash, "bcrt1qdtu5cwyngza8hw8s5uk2erlrkh8ceh3msp768v"))),
                 lockTime = 0
             )
-            val hash = hashForSigningSchnorr(tmp, 0, listOf(fundingTx.txOut[0]), SigHash.SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, annex = null, tapleafHash = merkleRoot)
-
+            
+            val hash = Transaction.hashForSigningSchnorr(tmp, 0, List(fundingTx.txOut(0)), SIGHASH_DEFAULT, SigVersion.SIGVERSION_TAPSCRIPT, annex = None, tapleafHash = Some(merkleRoot))
+            
             // compute all 3 signatures
-            val sigs = privs.map { Crypto.signSchnorr(hash, it, null) }
+            val sigs = privs.map { it => Crypto.signSchnorr(hash, it, None) }
 
             // control is the same for everyone since there are no specific merkle hashes to provide
-            val controlBlock = byteArrayOf((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte()) + internalPubkey.value.toByteArray()
-
+            val controlBlock = ByteVector((Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte) ++ internalPubkey.value
+            
             // one signature is not enough
-            val tx = tmp.updateWitness(0, ScriptWitness(listOf(sigs[0], sigs[0], sigs[0], Script.write(script).byteVector(), controlBlock.byteVector())))
+            val tx = tmp.updateWitness(0, ScriptWitness(List(sigs(0), sigs(0), sigs(0), Script.write(script), controlBlock)))
             assertFails {
-                Transaction.correctlySpends(tx, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+                Transaction.correctlySpends(tx, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
             }
-
+            
             // spend with sigs #0 and #1
-            val tx1 = tmp.updateWitness(0, ScriptWitness(listOf(ByteVector.empty, sigs[1], sigs[0], Script.write(script).byteVector(), controlBlock.byteVector())))
-            Transaction.correctlySpends(tx1, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            val tx1 = tmp.updateWitness(0, ScriptWitness(List(ByteVector.empty, sigs(1), sigs(0), Script.write(script), controlBlock)))
+            Transaction.correctlySpends(tx1, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
 
             // spend with sigs #1 and #2
-            val tx2 = tmp.updateWitness(0, ScriptWitness(listOf(sigs[2], ByteVector.empty, sigs[0], Script.write(script).byteVector(), controlBlock.byteVector())))
-            Transaction.correctlySpends(tx2, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            val tx2 = tmp.updateWitness(0, ScriptWitness(List(sigs(2), ByteVector.empty, sigs(0), Script.write(script), controlBlock)))
+            Transaction.correctlySpends(tx2, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
 
             // spend with sigs #0, #1 and #2
-            val tx3 = tmp.updateWitness(0, ScriptWitness(listOf(sigs[2], sigs[1], sigs[0], Script.write(script).byteVector(), controlBlock.byteVector())))
-            Transaction.correctlySpends(tx3, fundingTx, ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
-            */
-        }*/
+            val tx3 = tmp.updateWitness(0, ScriptWitness(List(sigs(2), sigs(1), sigs(0), Script.write(script), controlBlock)))
+            Transaction.correctlySpends(tx3, List(fundingTx), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+            
+        }
 
         /*test("create pay-to-script transactions") {
             // we create 3 private keys, and simple scripts: pay to key #1, pay to key #2, pay to key #3
@@ -288,4 +293,8 @@ object TaprootTest extends TestSuite {
     // helper function so we can copy/paste easier from ACINQ's test code
     def assertEquals[A,B](p1: A, p2: B): Unit = assert(p1 == p2)
     def assertTrue(p1: Boolean) = assert(p1)
+    def assertFails[A](f: => A) = scala.util.Try(f) match {
+        case Failure(exception) => () // horray, it failed as expected!
+        case Success(value) => throw new IllegalArgumentException("test was not supposed to pass, but did!")
+    }
 }

@@ -11,7 +11,7 @@ import scoin.ScriptTree.Leaf
  * @param script serialized bitcoin script
  * @param leafVersion tapscript version
  */
-class ScriptLeaf(val id: Int, val script: ByteVector, val leafVersion: Int) {
+case class ScriptLeaf(val id: Int, val script: ByteVector, val leafVersion: Int) {
     /**
      * tapleaf hash of this leaf
      */
