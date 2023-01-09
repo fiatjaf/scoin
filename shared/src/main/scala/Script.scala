@@ -194,8 +194,8 @@ object Script {
     def next(): ScriptElt = input.read match {
       case 0 => OP_0
       case i if (1 until 0x4c).contains(i) => OP_PUSHDATA(Protocol.bytes(input,i),i)
-      case 0x4c => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint8(input).toInt),0x4c)
-      case 0x4d => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint16(input).toInt),0x4d)
+      case 0x4c => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint8(input)),0x4c)
+      case 0x4d => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint16(input)),0x4d)
       case 0x4e => OP_PUSHDATA(Protocol.bytes(input,Protocol.uint32(input).toLong), 0x4e)
       case code if(ScriptElt.code2elt.contains(code)) => ScriptElt.code2elt(code)
       case code => OP_INVALID(code)
@@ -206,7 +206,7 @@ object Script {
 
   def parse(blob: ByteVector): List[ScriptElt] = parse(new ByteArrayInputStream(blob.toArray))
 
-  def parse(blob: Array[Byte]): List[ScriptElt] = parse(ByteVector.view(blob))
+  def parse(blob: Array[Byte]): List[ScriptElt] = parse(ByteVector(blob))
 
   @tailrec
   def write(script: Seq[ScriptElt], out: OutputStream): Unit = script match {
@@ -1875,13 +1875,15 @@ object Script {
                 require((0 to 128).contains((control.size - 33) / 32), "invalid control block size" )
                 val leafVersion = control(0).toInt & TAPROOT_LEAF_MASK
                 val internalKey = XOnlyPublicKey(ByteVector32(control.slice(1, 33)))
-                val tapleafHash = run {
-                    val buffer = new ByteArrayOutputStream()
-                    buffer.write(leafVersion)
-                    Protocol.writeScript(script.toArray, buffer)
-                    Crypto.taggedHash(ByteVector(buffer.toByteArray), "TapLeaf")
-                }.head
-                context.tapleafHash = Some(ByteVector32(tapleafHash)) // UNSAFE!! FIXME! 
+                val tapleafHash = {
+                  val buffer = new ByteArrayOutputStream()
+                  buffer.write(leafVersion)
+                  writeScript(script.toArray,buffer)
+                  val preimage = ByteVector(buffer.toByteArray)
+                  Crypto.taggedHash(preimage,"TapLeaf")
+                }
+                
+                context.tapleafHash = Some(tapleafHash) // UNSAFE!! FIXME!
 
                 // split input buffer into 32 bytes chunks (input buffer size MUST be a multiple of 32 !!)
                 @tailrec
@@ -1988,7 +1990,7 @@ object Script {
         "Script verification failed, stack starts with 'false'"
       )
 
-      var hadWitness = false
+      var hadWitness = false //UNSAFE!! We should not use var 
       val stack1 = if ((scriptFlag & SCRIPT_VERIFY_WITNESS) != 0) {
         spub match {
           case op :: OP_PUSHDATA(program, code) :: Nil
