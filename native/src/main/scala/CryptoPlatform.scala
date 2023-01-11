@@ -36,48 +36,17 @@ private[scoin] trait CryptoPlatform {
     lazy val underlying =
       secp256k1.loadPrivateKey(value.toArray.map(_.toUByte)).toOption.get
 
-    def add(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        ByteVector32(
-          ByteVector(
-            underlying
-              .add(that.value.toArray.map(_.toUByte))
-              .value
-              .map(_.toByte)
-          )
-        )
-      )
+    def add(that: PrivateKey): PrivateKey = PrivateKey {
+        (BigInt(value.toHex,16) + BigInt(that.value.toHex,16)).mod(N)
+    }
 
-    def subtract(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        ByteVector32(
-          ByteVector(
-            underlying
-              .add(
-                secp256k1
-                  .loadPrivateKey(that.value.toArray.map(_.toUByte))
-                  .toOption
-                  .get
-                  .negate()
-                  .value
-              )
-              .value
-              .map(_.toByte)
-          )
-        )
-      )
+    def subtract(that: PrivateKey): PrivateKey = PrivateKey {
+      val negThat = BigInt(N) - BigInt(that.value.toHex,16)
+      (BigInt(value.toHex,16) + negThat).mod(N)
+    }
 
     def multiply(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        ByteVector32(
-          ByteVector(
-            underlying
-              .multiply(that.value.toArray.map(_.toUByte))
-              .value
-              .map(_.toByte)
-          )
-        )
-      )
+      PrivateKey((BigInt(value.toHex,16) * BigInt(that.value.toHex,16)).mod(N))
 
     def publicKey: PublicKey =
       PublicKey(
@@ -86,61 +55,28 @@ private[scoin] trait CryptoPlatform {
   }
 
   private[scoin] class PublicKeyPlatform(value: ByteVector) {
+    import scoin.inefficient.Curve
+    val curve = Curve.secp256k1
+
     lazy val underlying =
       secp256k1.loadPublicKey(value.toArray.map(_.toUByte)).toOption.get
 
-    def add(that: PublicKey): PublicKey =
-      PublicKey(
-        ByteVector(
-          underlying
-            .add(
-              that.value.toArray.map(_.toUByte)
-            )
-            .value
-            .map(_.toByte)
-        )
-      )
+    def add(that: PublicKey): PublicKey = {
+      val lhs = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
+      val rhs = curve.CurvePoint.fromUnCompressed(that.toUncompressedBin)
+      Crypto.PublicKey(Curve.pointAdd(curve)(lhs,rhs).compressed,false)
+    }
 
-    def add(that: PrivateKey): PublicKey =
-      PublicKey(
-        ByteVector(
-          underlying
-            .add(
-              that.value.toArray.map(_.toUByte)
-            )
-            .value
-            .map(_.toByte)
-        )
-      )
+    def add(that: PrivateKey): PublicKey = ??? // not currently used by any tests
 
-    def subtract(that: PublicKey): PublicKey =
-      PublicKey(
-        ByteVector(
-          underlying
-            .add(
-              secp256k1
-                .loadPrivateKey(that.value.toArray.map(_.toUByte))
-                .toOption
-                .get
-                .negate()
-                .value
-                .toArray
-                .map(_.toUByte)
-            )
-            .value
-            .map(_.toByte)
-        )
-      )
+    def subtract(that: PublicKey): PublicKey = ??? // not currently used by any tests
 
-    def multiply(that: PrivateKey): PublicKey =
-      PublicKey(
-        ByteVector(
-          underlying
-            .multiply(that.value.toArray.map(_.toUByte))
-            .value
-            .map(_.toByte)
-        )
+    def multiply(that: PrivateKey): PublicKey = {
+      val point = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
+      Crypto.PublicKey(
+        Curve.multByScalar(curve)(point,BigInt(that.value.toHex,16)).compressed
       )
+    }
 
     def toUncompressedBin: ByteVector = ByteVector(
       underlying.toUncompressed().map(_.toByte)
