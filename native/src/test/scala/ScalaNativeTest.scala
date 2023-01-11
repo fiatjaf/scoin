@@ -3,7 +3,7 @@ package scoin
 import scoin._
 import utest._
 import scodec.bits._
-import inefficient.Curve._
+import reckless.Curve._
 
 object ScalaNativeTest extends TestSuite {
     val tests = Tests {
@@ -16,7 +16,7 @@ object ScalaNativeTest extends TestSuite {
         }
 
         test("point mul") {
-            val curve = inefficient.Curve.secp256k1
+            val curve = reckless.Curve.secp256k1
             val priv = BigInt(27)
             // from https://asecuritysite.com/encryption/ecc_real for secp256k1
             // 27*G= (99023490166718961467148584643029653267652245207820783364668071358307234645801, 75362751621984629832705305750958516370071248757681753180287377123479199292501)

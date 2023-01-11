@@ -55,7 +55,7 @@ private[scoin] trait CryptoPlatform {
   }
 
   private[scoin] class PublicKeyPlatform(value: ByteVector) {
-    import scoin.inefficient.Curve
+    import scoin.reckless.Curve
     val curve = Curve.secp256k1
 
     lazy val underlying =

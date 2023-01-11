@@ -1,4 +1,4 @@
-package scoin.inefficient
+package scoin.reckless
 import scodec.bits._
 
 
