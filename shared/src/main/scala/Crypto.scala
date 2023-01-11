@@ -37,9 +37,15 @@ object Crypto extends CryptoPlatform {
     def toBase58(prefix: Byte) =
       Base58Check.encode(prefix, value.bytes :+ 1.toByte)
 
-    def tweak(tweak: ByteVector32): PrivateKey = {
+    /**
+      * Tweak this private key with the scalar value of `tweak32`
+      * 
+      * @param tweak32 the value (possibly a merkleRoot) used to tweak the private key
+      * @return tweaked private key
+      */
+    def tweak(tweak32: ByteVector32): PrivateKey = {
       val key = if (publicKey.isEven) this else this.negate
-      key + PrivateKey(tweak)
+      key + PrivateKey(tweak32)
     }
   }
 
@@ -486,11 +492,30 @@ object Crypto extends CryptoPlatform {
 
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
 
+    /**
+      * Calculates a `taggedHash(m,"TapTweak")` where 
+      * `m:ByteVector32` is calculated as:
+      * val m = if(merkleRoot.isEmpty) 
+      *           thisXOnlyPublicKey.value ++ merkleRoot
+      *     else
+                  thisXOnlyPublicKey.value
+      * @param merkleRoot
+      * @return a unique "tweak" corresponding to 
+      */
     def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 = merkleRoot match {
       case None => taggedHash(value, "TapTweak")
       case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
     }
 
+    /**
+      * Construct a new `XOnlyPublicKey` by (optionally) tweaking this one
+      * with a `merkleRoot` (the tweak). The tweak is used to create a private
+      * key `t` with corresponding public key `T` and the returned public key
+      * is `this.pointAdd(T)`.
+      * 
+      * @param merkleRoot
+      * @return tweaked XOnlyPublicKey
+      */
     def outputKey(merkleRoot: Option[ByteVector32] = None): XOnlyPublicKey = 
       this.pointAdd(PrivateKey(tweak(merkleRoot)).publicKey)
 
