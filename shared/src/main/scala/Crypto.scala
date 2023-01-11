@@ -20,6 +20,15 @@ object Crypto extends CryptoPlatform {
     def -(that: PrivateKey): PrivateKey = subtract(that)
     def *(that: PrivateKey): PrivateKey = multiply(that)
 
+    /**
+      * Negate a private key
+      * This is a naive slow implementation but works on every platform
+      * @return negation of private key
+      */
+    def negate: PrivateKey = PrivateKey((BigInt(N)-BigInt(value.toHex,16)).mod(N))
+
+    def xOnlyPublicKey: XOnlyPublicKey = XOnlyPublicKey(publicKey)
+
     /** @param prefix
       *   Private key prefix
       * @return
@@ -27,6 +36,11 @@ object Crypto extends CryptoPlatform {
       */
     def toBase58(prefix: Byte) =
       Base58Check.encode(prefix, value.bytes :+ 1.toByte)
+
+    def tweak(tweak: ByteVector32): PrivateKey = {
+      val key = if (publicKey.isEven) this else this.negate
+      key + PrivateKey(tweak)
+    }
   }
 
   object PrivateKey {
@@ -38,6 +52,11 @@ object Crypto extends CryptoPlatform {
       new PrivateKey(
         fixSize(ByteVector.view(data.toByteArray.dropWhile(_ == 0.toByte)))
       )
+    }
+
+    def apply(data: BigInt): PrivateKey = {
+      require(data >= 0, "only non-negative integers mod N allowed")
+      PrivateKey(fixSize(ByteVector.fromValidHex(data.mod(N).toString(16))))
     }
 
     /** @param data
@@ -84,6 +103,8 @@ object Crypto extends CryptoPlatform {
     def hash160: ByteVector = Crypto.hash160(value)
     def xonly: XOnlyPublicKey = XOnlyPublicKey(this)
     def isValid: Boolean = isPubKeyValidStrict(this.value)
+    def isEven: Boolean = value(0) == 2.toByte
+    def isOdd: Boolean = !isEven
 
     def +(that: PublicKey): PublicKey = add(that)
     def -(that: PublicKey): PublicKey = subtract(that)
@@ -502,7 +523,32 @@ object Crypto extends CryptoPlatform {
       privateKey: PrivateKey,
       auxrand32: Option[ByteVector32] = None
   ): ByteVector64 =
-    signSchnorrImpl(data, privateKey, auxrand32)
+    auxrand32 match {
+      case None => signSchnorrImpl(data, privateKey, Some(ByteVector32.Zeroes))
+      case Some(bv32) => signSchnorrImpl(data,privateKey,Some(bv32))
+    }
+
+  sealed trait SchnorrTweak
+  case object NoTweak extends SchnorrTweak
+  case object NoScriptPathsTweak extends SchnorrTweak
+  case class KeyPathTweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
+  case class Tweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
+
+  def signSchnorrWithTweak(
+      data: ByteVector32, 
+      privateKey: PrivateKey, 
+      merkleRoot: Option[ByteVector32], 
+      auxrand32: Option[ByteVector32] = None
+  ): ByteVector64 = {
+    val priv = merkleRoot match {
+      case None => privateKey
+      case Some(ByteVector32.Zeroes) => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(None))
+      case _ => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(merkleRoot))
+    }
+    val sig = signSchnorr(data,priv,auxrand32)
+    require(verifySignatureSchnorr(sig,data,priv.xOnlyPublicKey),"Cannot create Schnorr signature")
+    sig
+  }
 
   /** Verify a BIP340 schnorr signature
     *
@@ -512,8 +558,8 @@ object Crypto extends CryptoPlatform {
     * @return
     */
   def verifySignatureSchnorr(
-      data: ByteVector32,
       signature: ByteVector64,
+      data: ByteVector32,
       publicKey: XOnlyPublicKey
   ): Boolean =
     verifySignatureSchnorrImpl(data, signature, publicKey)
