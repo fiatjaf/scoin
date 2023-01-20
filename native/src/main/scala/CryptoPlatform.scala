@@ -37,16 +37,18 @@ private[scoin] trait CryptoPlatform {
       secp256k1.loadPrivateKey(value.toArray.map(_.toUByte)).toOption.get
 
     def add(that: PrivateKey): PrivateKey = PrivateKey {
-        (BigInt(value.toHex,16) + BigInt(that.value.toHex,16)).mod(N)
+      (BigInt(value.toHex, 16) + BigInt(that.value.toHex, 16)).mod(N)
     }
 
     def subtract(that: PrivateKey): PrivateKey = PrivateKey {
-      val negThat = BigInt(N) - BigInt(that.value.toHex,16)
-      (BigInt(value.toHex,16) + negThat).mod(N)
+      val negThat = BigInt(N) - BigInt(that.value.toHex, 16)
+      (BigInt(value.toHex, 16) + negThat).mod(N)
     }
 
     def multiply(that: PrivateKey): PrivateKey =
-      PrivateKey((BigInt(value.toHex,16) * BigInt(that.value.toHex,16)).mod(N))
+      PrivateKey(
+        (BigInt(value.toHex, 16) * BigInt(that.value.toHex, 16)).mod(N)
+      )
 
     def publicKey: PublicKey =
       PublicKey(
@@ -64,17 +66,21 @@ private[scoin] trait CryptoPlatform {
     def add(that: PublicKey): PublicKey = {
       val lhs = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
       val rhs = curve.CurvePoint.fromUnCompressed(that.toUncompressedBin)
-      Crypto.PublicKey(Curve.pointAdd(curve)(lhs,rhs).compressed,false)
+      Crypto.PublicKey(Curve.pointAdd(curve)(lhs, rhs).compressed, false)
     }
 
-    def add(that: PrivateKey): PublicKey = ??? // not currently used by any tests
+    def add(that: PrivateKey): PublicKey =
+      ??? // not currently used by any tests
 
-    def subtract(that: PublicKey): PublicKey = ??? // not currently used by any tests
+    def subtract(that: PublicKey): PublicKey =
+      ??? // not currently used by any tests
 
     def multiply(that: PrivateKey): PublicKey = {
       val point = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
       Crypto.PublicKey(
-        Curve.multByScalar(curve)(point,BigInt(that.value.toHex,16)).compressed
+        Curve
+          .multByScalar(curve)(point, BigInt(that.value.toHex, 16))
+          .compressed
       )
     }
 

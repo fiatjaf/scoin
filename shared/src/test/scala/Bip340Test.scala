@@ -7,11 +7,11 @@ import Crypto.PrivateKey
 import Crypto.XOnlyPublicKey
 
 object Bip340Test extends TestSuite {
-   // tests inspired by https://github.com/ACINQ/secp256k1-kmp/blob/master/tests/src/commonTest/kotlin/fr/acinq/secp256k1/Secp256k1Test.kt#L291
-    val tests = Tests {
-        test("BIP340 test vectors") {
-            // BIP340 test vectors copied from https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
-        val bip340TestVectors = """index,secret key,public key,aux_rand,message,signature,verification result,comment
+  // tests inspired by https://github.com/ACINQ/secp256k1-kmp/blob/master/tests/src/commonTest/kotlin/fr/acinq/secp256k1/Secp256k1Test.kt#L291
+  val tests = Tests {
+    test("BIP340 test vectors") {
+      // BIP340 test vectors copied from https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+      val bip340TestVectors = """index,secret key,public key,aux_rand,message,signature,verification result,comment
 0,0000000000000000000000000000000000000000000000000000000000000003,F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9,0000000000000000000000000000000000000000000000000000000000000000,0000000000000000000000000000000000000000000000000000000000000000,E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0,TRUE,
 1,B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF,DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659,0000000000000000000000000000000000000000000000000000000000000001,243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89,6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A,TRUE,
 2,C90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9,DD308AFEC5777E13121FA72B9CC1B7CC0139715309B086C960E18FD969774EB8,C87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D906,7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C,5831AAEED7B44BB74E5EAB94BA9D4294C49BCF2A60728D8B4C200F50DD313C1BAB745879A5AD954A72C45A91C3A51D3C7ADEA98D82F8481E0E1E03674A6F3FB7,TRUE,
@@ -28,48 +28,59 @@ object Bip340Test extends TestSuite {
 13,,DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659,,243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89,6CFF5C3BA86C69EA4B7376F31A9BCB4F74C1976089B2D9963DA2E5543E177769FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,FALSE,sig[32:64] is equal to curve order
 14,,FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30,,243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89,6CFF5C3BA86C69EA4B7376F31A9BCB4F74C1976089B2D9963DA2E5543E17776969E89B4C5564D00349106B8497785DD7D1D713A8AE82B32FA79D5F7FC407D39B,FALSE,public key is not a valid X coordinate because it exceeds the field size"""
 
-            bip340TestVectors.split('\n').drop(1).foreach { it =>
-                val testData = it.split(',')
-                val index = testData(0)
-                val seckey = ByteVector.fromValidHex(testData(1))
-                val pubkey = XOnlyPublicKey(ByteVector32.fromValidHex(testData(2)))
-                val auxrand = if (testData(3).isEmpty()) None else Some(ByteVector32.fromValidHex(testData(3)))
-                val msg = ByteVector32.fromValidHex(testData(4))
-                val sig = testData(5)
-                val expected = testData(6) match {
-                    case "FALSE" => false
-                    case _ => true
-                }
-                val comment = if(testData.size == 8) testData(7) else ""
-
-                if (!seckey.isEmpty) {
-                    val ourSig = Crypto.signSchnorr(msg, PrivateKey(ByteVector32(seckey)), auxrand)
-                    assertEquals(ourSig.toHex.toUpperCase, sig)
-                }
-                val result = try {
-                    Crypto.verifySignatureSchnorr(ByteVector64.fromValidHex(sig), msg, pubkey)
-                } catch {
-                    case t: Throwable => false
-                }
-                assertEquals(expected, result, "test [$index, $comment] failed")
-            }
+      bip340TestVectors.split('\n').drop(1).foreach { it =>
+        val testData = it.split(',')
+        val index = testData(0)
+        val seckey = ByteVector.fromValidHex(testData(1))
+        val pubkey = XOnlyPublicKey(ByteVector32.fromValidHex(testData(2)))
+        val auxrand =
+          if (testData(3).isEmpty()) None
+          else Some(ByteVector32.fromValidHex(testData(3)))
+        val msg = ByteVector32.fromValidHex(testData(4))
+        val sig = testData(5)
+        val expected = testData(6) match {
+          case "FALSE" => false
+          case _       => true
         }
+        val comment = if (testData.size == 8) testData(7) else ""
 
-        test("negate private key") {
-            val priv = ByteVector32.fromValidHex("67E56582298859DDAE725F972992A07C6C4FB9F62A8FFF58CE3CA926A1063530")
-            val npriv = PrivateKey(priv).negate
-            assertEquals(
-                "981A9A7DD677A622518DA068D66D5F824E5F22F084B8A0E2F195B5662F300C11",
-                npriv.value.toHex.toUpperCase,
+        if (!seckey.isEmpty) {
+          val ourSig =
+            Crypto.signSchnorr(msg, PrivateKey(ByteVector32(seckey)), auxrand)
+          assertEquals(ourSig.toHex.toUpperCase, sig)
+        }
+        val result =
+          try {
+            Crypto.verifySignatureSchnorr(
+              ByteVector64.fromValidHex(sig),
+              msg,
+              pubkey
             )
-            val nnpriv = npriv.negate
-            assertEquals(priv, nnpriv.value)
-        }
-
+          } catch {
+            case t: Throwable => false
+          }
+        assertEquals(expected, result, "test [$index, $comment] failed")
+      }
     }
 
-    // helper function so we can copy/paste easier from ACINQ's test code
-    def assertEquals[A,B](p1: A, p2: B, msg: String = ""): Unit = require(p1 == p2,msg)
-    def assertTrue(p1: Boolean) = assert(p1)
+    test("negate private key") {
+      val priv = ByteVector32.fromValidHex(
+        "67E56582298859DDAE725F972992A07C6C4FB9F62A8FFF58CE3CA926A1063530"
+      )
+      val npriv = PrivateKey(priv).negate
+      assertEquals(
+        "981A9A7DD677A622518DA068D66D5F824E5F22F084B8A0E2F195B5662F300C11",
+        npriv.value.toHex.toUpperCase
+      )
+      val nnpriv = npriv.negate
+      assertEquals(priv, nnpriv.value)
+    }
+
+  }
+
+  // helper function so we can copy/paste easier from ACINQ's test code
+  def assertEquals[A, B](p1: A, p2: B, msg: String = ""): Unit =
+    require(p1 == p2, msg)
+  def assertTrue(p1: Boolean) = assert(p1)
 
 }

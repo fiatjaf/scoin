@@ -20,12 +20,14 @@ object Crypto extends CryptoPlatform {
     def -(that: PrivateKey): PrivateKey = subtract(that)
     def *(that: PrivateKey): PrivateKey = multiply(that)
 
-    /**
-      * Negate a private key
-      * This is a naive slow implementation but works on every platform
-      * @return negation of private key
+    /** Negate a private key This is a naive slow implementation but works on
+      * every platform
+      * @return
+      *   negation of private key
       */
-    def negate: PrivateKey = PrivateKey((BigInt(N)-BigInt(value.toHex,16)).mod(N))
+    def negate: PrivateKey = PrivateKey(
+      (BigInt(N) - BigInt(value.toHex, 16)).mod(N)
+    )
 
     def xOnlyPublicKey: XOnlyPublicKey = XOnlyPublicKey(publicKey)
 
@@ -37,11 +39,12 @@ object Crypto extends CryptoPlatform {
     def toBase58(prefix: Byte) =
       Base58Check.encode(prefix, value.bytes :+ 1.toByte)
 
-    /**
-      * Tweak this private key with the scalar value of `tweak32`
-      * 
-      * @param tweak32 the value (possibly a merkleRoot) used to tweak the private key
-      * @return tweaked private key
+    /** Tweak this private key with the scalar value of `tweak32`
+      *
+      * @param tweak32
+      *   the value (possibly a merkleRoot) used to tweak the private key
+      * @return
+      *   tweaked private key
       */
     def tweak(tweak32: ByteVector32): PrivateKey = {
       val key = if (publicKey.isEven) this else this.negate
@@ -479,8 +482,7 @@ object Crypto extends CryptoPlatform {
     * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
     */
 
-  /**
-    * Tagged hash of input as defined in BIP340
+  /** Tagged hash of input as defined in BIP340
     */
   def taggedHash(input: ByteVector, tag: String): ByteVector32 = {
     val hashedTag = sha256(ByteVector(tag.getBytes("UTF-8")))
@@ -492,31 +494,29 @@ object Crypto extends CryptoPlatform {
 
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
 
-    /**
-      * Calculates a `taggedHash(m,"TapTweak")` where 
-      * `m:ByteVector32` is calculated as:
-      * val m = if(merkleRoot.isEmpty) 
-      *           thisXOnlyPublicKey.value ++ merkleRoot
-      *     else
-                  thisXOnlyPublicKey.value
+    /** Calculates a `taggedHash(m,"TapTweak")` where `m:ByteVector32` is
+      * calculated as: val m = if(merkleRoot.isEmpty) thisXOnlyPublicKey.value
+      * ++ merkleRoot else thisXOnlyPublicKey.value
       * @param merkleRoot
-      * @return a unique "tweak" corresponding to 
+      * @return
+      *   a unique "tweak" corresponding to
       */
-    def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 = merkleRoot match {
-      case None => taggedHash(value, "TapTweak")
-      case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
-    }
+    def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 =
+      merkleRoot match {
+        case None       => taggedHash(value, "TapTweak")
+        case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
+      }
 
-    /**
-      * Construct a new `XOnlyPublicKey` by (optionally) tweaking this one
-      * with a `merkleRoot` (the tweak). The tweak is used to create a private
-      * key `t` with corresponding public key `T` and the returned public key
-      * is `this.pointAdd(T)`.
-      * 
+    /** Construct a new `XOnlyPublicKey` by (optionally) tweaking this one with
+      * a `merkleRoot` (the tweak). The tweak is used to create a private key
+      * `t` with corresponding public key `T` and the returned public key is
+      * `this.pointAdd(T)`.
+      *
       * @param merkleRoot
-      * @return tweaked XOnlyPublicKey
+      * @return
+      *   tweaked XOnlyPublicKey
       */
-    def outputKey(merkleRoot: Option[ByteVector32] = None): XOnlyPublicKey = 
+    def outputKey(merkleRoot: Option[ByteVector32] = None): XOnlyPublicKey =
       this.pointAdd(PrivateKey(tweak(merkleRoot)).publicKey)
 
     override def toString = s"XOnlyPublicKey($toHex)"
@@ -527,7 +527,9 @@ object Crypto extends CryptoPlatform {
     )
 
     implicit class xonlyOps(lhs: XOnlyPublicKey) {
-      def pointAdd(rhs: PublicKey): XOnlyPublicKey = XOnlyPublicKey(lhs.publicKey + rhs)
+      def pointAdd(rhs: PublicKey): XOnlyPublicKey = XOnlyPublicKey(
+        lhs.publicKey + rhs
+      )
       def plus(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
       def +(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
     }
@@ -550,28 +552,32 @@ object Crypto extends CryptoPlatform {
   ): ByteVector64 =
     auxrand32 match {
       case None => signSchnorrImpl(data, privateKey, Some(ByteVector32.Zeroes))
-      case Some(bv32) => signSchnorrImpl(data,privateKey,Some(bv32))
+      case Some(bv32) => signSchnorrImpl(data, privateKey, Some(bv32))
     }
 
   sealed trait SchnorrTweak
   case object NoTweak extends SchnorrTweak
   case object NoScriptPathsTweak extends SchnorrTweak
-  case class KeyPathTweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
-  case class Tweak( merkleRoot: ByteVector32 ) extends SchnorrTweak
+  case class KeyPathTweak(merkleRoot: ByteVector32) extends SchnorrTweak
+  case class Tweak(merkleRoot: ByteVector32) extends SchnorrTweak
 
   def signSchnorrWithTweak(
-      data: ByteVector32, 
-      privateKey: PrivateKey, 
-      merkleRoot: Option[ByteVector32], 
+      data: ByteVector32,
+      privateKey: PrivateKey,
+      merkleRoot: Option[ByteVector32],
       auxrand32: Option[ByteVector32] = None
   ): ByteVector64 = {
     val priv = merkleRoot match {
       case None => privateKey
-      case Some(ByteVector32.Zeroes) => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(None))
+      case Some(ByteVector32.Zeroes) =>
+        privateKey.tweak(privateKey.xOnlyPublicKey.tweak(None))
       case _ => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(merkleRoot))
     }
-    val sig = signSchnorr(data,priv,auxrand32)
-    require(verifySignatureSchnorr(sig,data,priv.xOnlyPublicKey),"Cannot create Schnorr signature")
+    val sig = signSchnorr(data, priv, auxrand32)
+    require(
+      verifySignatureSchnorr(sig, data, priv.xOnlyPublicKey),
+      "Cannot create Schnorr signature"
+    )
     sig
   }
 

@@ -41,12 +41,12 @@ private[scoin] trait CryptoPlatform {
 
   private[scoin] class PrivateKeyPlatform(value: ByteVector32) {
     def add(that: PrivateKey): PrivateKey = PrivateKey {
-        (BigInt(value.toHex,16) + BigInt(that.value.toHex,16)).mod(N)
+      (BigInt(value.toHex, 16) + BigInt(that.value.toHex, 16)).mod(N)
     }
 
     def subtract(that: PrivateKey): PrivateKey = PrivateKey {
-      val negThat = BigInt(N) - BigInt(that.value.toHex,16)
-      (BigInt(value.toHex,16) + negThat).mod(N)
+      val negThat = BigInt(N) - BigInt(that.value.toHex, 16)
+      (BigInt(value.toHex, 16) + negThat).mod(N)
     }
 
     def multiply(that: PrivateKey): PrivateKey =
