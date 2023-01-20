@@ -5,7 +5,7 @@ import utest._
 import scodec.bits._
 import reckless.Curve._
 
-object ScalaNativeTest extends TestSuite {
+object RecklessECCTest extends TestSuite {
   val tests = Tests {
     test("compressed point G") {
       require(
