@@ -34,7 +34,7 @@ object Secp256k1 extends js.Object {
   object utils extends js.Object {
     def privateNegate(privateKey: Uint8Array): Uint8Array = js.native
     def privateAdd(privateKey: Uint8Array, tweak: Uint8Array): Uint8Array =
-      js.native
+      js.native // note: it seems there is no such method in undelrying javascript library
     def pointAddScalar(point: Uint8Array, tweak: Uint8Array): Uint8Array =
       js.native
     def mod(number: js.BigInt): js.BigInt = js.native

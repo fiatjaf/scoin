@@ -3,6 +3,9 @@ import scala.language.implicitConversions
 import scodec.bits.ByteVector
 
 import scoin.Crypto.{PublicKey, PrivateKey, randomBytes}
+import scala.util.Try
+import scala.util.Failure
+import scala.util.Success
 
 /** Types and utils related to Bitcoin blockchain objects: blocks, scripts,
   * transactions, addresses, PSBTs, keys, signatures, hashes.
@@ -18,10 +21,15 @@ package object scoin {
   val SIGHASH_NONE = 2
   val SIGHASH_SINGLE = 3
   val SIGHASH_ANYONECANPAY = 0x80
+  val SIGHASH_DEFAULT: Int = 0 //!< Taproot only; implied when sighash byte is missing, and equivalent to SIGHASH_ALL
+  val SIGHASH_OUTPUT_MASK: Int = 3
+  val SIGHASH_INPUT_MASK: Int = 0x80
 
   object SigVersion {
     val SIGVERSION_BASE = 0
     val SIGVERSION_WITNESS_V0 = 1
+    val SIGVERSION_TAPROOT: Int = 2
+    val SIGVERSION_TAPSCRIPT: Int = 3
   }
 
   implicit object NumericSatoshi extends Numeric[Satoshi] {
@@ -304,4 +312,57 @@ package object scoin {
     address.startsWith("1") || address.startsWith("m") || address.startsWith(
       "n"
     )
+
+  /**
+    * Given an address and chain code, find public key script (if exists).
+    * Will try Base58 encoding first, then Bech32.
+    *
+    * @param chainHash
+    * @param address
+    * @return
+    */
+  def addressToPublicKeyScript(chainHash: ByteVector32, address:String): Seq[ScriptElt] = {
+    val witnessVersions = Map(
+                  0.toByte -> OP_0,
+            1.toByte -> OP_1,
+            2.toByte -> OP_2,
+            3.toByte -> OP_3,
+            4.toByte -> OP_4,
+            5.toByte -> OP_5,
+            6.toByte -> OP_6,
+            7.toByte -> OP_7,
+            8.toByte -> OP_8,
+            9.toByte -> OP_9,
+            10.toByte -> OP_10,
+            11.toByte -> OP_11,
+            12.toByte -> OP_12,
+            13.toByte -> OP_13,
+            14.toByte -> OP_14,
+            15.toByte -> OP_15,
+            16.toByte -> OP_16
+    )
+    Try(Base58Check.decode(address)) match {
+      case Success((prefix,data)) => prefix match {
+        case Base58.Prefix.PubkeyAddressTestnet if( chainHash == Block.TestnetGenesisBlock.hash || chainHash == Block.RegtestGenesisBlock.hash || chainHash == Block.SignetGenesisBlock.hash ) => Script.pay2pkh(data)
+        case Base58.Prefix.PubkeyAddress if( chainHash == Block.LivenetGenesisBlock.hash) => Script.pay2pkh(data)
+        case Base58.Prefix.ScriptAddressTestnet if( chainHash == Block.TestnetGenesisBlock.hash || chainHash == Block.RegtestGenesisBlock.hash || chainHash == Block.SignetGenesisBlock.hash ) => List(OP_HASH160, OP_PUSHDATA(data), OP_EQUAL)
+        case Base58.Prefix.ScriptAddress if ( chainHash == Block.LivenetGenesisBlock.hash) => List(OP_HASH160, OP_PUSHDATA(data), OP_EQUAL)
+        case _ => throw new IllegalArgumentException("base58 address does not match our blockchain")
+      }
+      case Failure(base58error) => Try(Bech32.decodeWitnessAddress(address)) match {
+        case Success((prefix,version,program)) => {
+          witnessVersions.get(version) match {
+            case None => throw new IllegalArgumentException(s"invalid version $version in bech32 address")
+            case Some(wv) if(program.size != 20 && program.size != 32) => throw new IllegalArgumentException("hash length in bech32 address must be either 20 or 32 bytes")
+            case Some(wv) if(prefix == "bc" && chainHash == Block.LivenetGenesisBlock.hash) => List(wv, OP_PUSHDATA(program))
+            case Some(wv) if(prefix == "tb" && chainHash == Block.TestnetGenesisBlock.hash) => List(wv, OP_PUSHDATA(program))
+            case Some(wv) if(prefix == "tb" && chainHash == Block.SignetGenesisBlock.hash) => List(wv, OP_PUSHDATA(program))
+            case Some(wv) if(prefix == "bcrt" && chainHash == Block.RegtestGenesisBlock.hash) => List(wv, OP_PUSHDATA(program))
+            case _ => throw new IllegalArgumentException("bech32 address does not match our blockchain")
+          }
+        }
+        case Failure(exception) => throw new IllegalArgumentException(s"$address is neither a valid Base58 address ($base58error) nor a valid Bech32 address")
+      }
+    }
+  }
 }

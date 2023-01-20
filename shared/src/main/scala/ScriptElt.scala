@@ -2,6 +2,7 @@ package scoin
 
 import scoin.Crypto.PublicKey
 import scodec.bits.ByteVector
+import scoin.Crypto.XOnlyPublicKey
 
 // @formatter:off
 abstract class ScriptElt
@@ -104,6 +105,8 @@ case object OP_HASH256 extends ScriptElt
 case object OP_CODESEPARATOR extends ScriptElt
 case object OP_CHECKSIG extends ScriptElt
 case object OP_CHECKSIGVERIFY extends ScriptElt
+// opcode added by BIP 342 (tapscrpt)
+case object OP_CHECKSIGADD extends ScriptElt
 case object OP_CHECKMULTISIG extends ScriptElt
 case object OP_CHECKMULTISIGVERIFY extends ScriptElt
 case object OP_NOP1 extends ScriptElt
@@ -127,6 +130,8 @@ object OP_PUSHDATA {
 
   def apply(pub: PublicKey): OP_PUSHDATA = OP_PUSHDATA(pub.value)
 
+  def apply(publicKey: XOnlyPublicKey): OP_PUSHDATA = OP_PUSHDATA(publicKey.value)
+
   def isMinimal(data: ByteVector, code: Int): Boolean = if (data.length == 0) code == ScriptElt.elt2code(OP_0)
   else if (data.length == 1 && data(0) >= 1 && data(0) <= 16) code == ScriptElt.elt2code(OP_1) + (data(0) - 1)
   else if (data.length == 1 && data(0) == 0x81.toByte) code == ScriptElt.elt2code(OP_1NEGATE)
@@ -142,6 +147,13 @@ case class OP_INVALID(code: Int) extends ScriptElt
 // @formatter:off
 
 object ScriptElt {
+  def opCode(elt: ScriptElt): Int = elt match {
+    case e if elt2code.contains(elt) => elt2code(elt)
+    case e: OP_PUSHDATA => e.code
+    case e: OP_INVALID => e.code
+    case _ => throw new IllegalArgumentException(s"invalid script element $elt")
+  }
+
   // code -> ScriptElt
   val code2elt: Map[Int, ScriptElt] = Map(
     0x00 -> OP_0,
@@ -255,6 +267,7 @@ object ScriptElt {
     0xb7 -> OP_NOP8,
     0xb8 -> OP_NOP9,
     0xb9 -> OP_NOP10,
+    0xba -> OP_CHECKSIGADD,
     0xfa -> OP_SMALLINTEGER,
     0xff -> OP_INVALIDOPCODE)
 
