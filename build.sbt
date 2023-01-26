@@ -9,7 +9,7 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val root = tlCrossRootProject.aggregate(scoin, scoinReckless)
+lazy val root = tlCrossRootProject.aggregate(scoin)
 
 // libraries used across all platforms (jvm, js, native)
 lazy val commonLibraryDependencies = Def.setting{
