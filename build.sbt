@@ -9,20 +9,25 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val root = tlCrossRootProject.aggregate(scoin)
+lazy val root = tlCrossRootProject.aggregate(scoin, scoinReckless)
+
+// libraries used across all platforms (jvm, js, native)
+lazy val commonLibraryDependencies = Def.setting{
+  Seq(
+      "org.scodec" %%% "scodec-bits" % "1.1.34",
+      "org.scodec" %%% "scodec-core" % (if (scalaVersion.value.startsWith("2.")) "1.11.9" else "2.2.0"),
+      "com.comcast" %%% "ip4s-core" % "3.2.0",
+
+      "com.lihaoyi" %%% "utest" % "0.8.0" % Test
+    )
+}
 
 lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .in(file("."))
   .settings(
     name := "scoin",
     description := "The simplest possible multipurpose Bitcoin and Lightning library for Scala Native and Scala JS.",
-    libraryDependencies ++= Seq(
-      "org.scodec" %%% "scodec-bits" % "1.1.34",
-      "org.scodec" %%% "scodec-core" % (if (scalaVersion.value.startsWith("2.")) "1.11.9" else "2.2.0"),
-      "com.comcast" %%% "ip4s-core" % "3.2.0",
-
-      "com.lihaoyi" %%% "utest" % "0.8.0" % Test
-    ),
+    libraryDependencies ++= commonLibraryDependencies.value,
     testFrameworks += new TestFramework("utest.runner.Framework")
   )
   .jvmSettings(
@@ -69,3 +74,15 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
 
 // maven magic, see https://github.com/makingthematrix/scala-suffix/tree/56270a#but-wait-thats-not-all
 Compile / packageBin / packageOptions += Package.ManifestAttributes("Automatic-Module-Name" -> "scoin")
+
+// a "reckless" version of scoin which contains pure-scala implementations of the various crypto primitives
+lazy val scoinReckless = crossProject(JVMPlatform, JSPlatform, NativePlatform)
+  .in(file("reckless"))
+  .settings(
+    name := "scoin-reckless",
+    description := "A pure but reckless and inefficient scoin, without non-scala dependencies.",
+    Compile / unmanagedSourceDirectories += file("shared/src/main/scala").getAbsoluteFile,
+    Test / unmanagedSourceDirectories += file("shared/src/test/scala").getAbsoluteFile,
+    libraryDependencies ++= commonLibraryDependencies.value,
+    testFrameworks += new TestFramework("utest.runner.Framework")
+  )
