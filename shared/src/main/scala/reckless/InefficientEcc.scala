@@ -1,4 +1,5 @@
 package scoin.reckless
+
 import scodec.bits._
 
 /** The elliptic curve domain parameters over F_p associated with a Koblitz
@@ -21,23 +22,20 @@ trait Curve[A] {
         case true  => ByteVector(0x02)
         case false => ByteVector(0x03)
       }
-      firstByte
-        ++ ByteVector.fromValidHex(
-          x.toString(16).reverse.padTo(32, '0').reverse
-        )
+      firstByte ++ ByteVector.fromValidHex(
+        x.toString(16).reverse.padTo(32, '0').reverse
+      )
       // ++ ByteVector.fromValidHex(y.toString(16).reverse.padTo(32,'0').reverse)
     }
     def uncompressed: ByteVector = {
       require(this.isInstanceOf[CurvePoint])
       val x = this.asInstanceOf[CurvePoint].x
       val y = this.asInstanceOf[CurvePoint].y
-      ByteVector(0x04)
-        ++ ByteVector.fromValidHex(
-          x.toString(16).reverse.padTo(32, '0').reverse
-        )
-        ++ ByteVector.fromValidHex(
-          y.toString(16).reverse.padTo(32, '0').reverse
-        )
+      ByteVector(0x04) ++ ByteVector.fromValidHex(
+        x.toString(16).reverse.padTo(32, '0').reverse
+      ) ++ ByteVector.fromValidHex(
+        y.toString(16).reverse.padTo(32, '0').reverse
+      )
     }
   }
   case class CurvePoint(x: F_p, y: F_p) extends Point
@@ -123,9 +121,8 @@ trait Secp256k1 extends Curve[Secp256k1] {
     * finite field Fp is defined by:
     *
     * p = FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE
-    * FFFFFC2F
-    * \= 2256 - 232 - 29 - 28 - 27 - 26 - 24 - 1 The curve E: y2 = x3+ax+b over
-    * Fp is defined by:
+    * FFFFFC2F \= 2256 - 232 - 29 - 28 - 27 - 26 - 24 - 1 The curve E: y2 =
+    * x3+ax+b over Fp is defined by:
     *
     * a = 00000000 00000000 00000000 00000000 00000000 00000000 00000000
     * 00000000 b = 00000000 00000000 00000000 00000000 00000000 00000000
