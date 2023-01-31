@@ -51,19 +51,7 @@ private[scoin] trait CryptoPlatform {
 
     def multiply(that: PrivateKey): PrivateKey =
       PrivateKey(
-        ByteVector32(
-          ByteVector.fromValidHex(
-            utils
-              .mod(
-                js.BigInt(
-                  bytevector2biginteger(value.bytes)
-                    .multiply(bytevector2biginteger(that.value.bytes))
-                    .toString(10)
-                )
-              )
-              .toString(16)
-          )
-        )
+        (BigInt(value.toHex, 16) * BigInt(that.value.toHex, 16)).mod(N)
       )
 
     def publicKey: PublicKey = PublicKey(
@@ -92,7 +80,9 @@ private[scoin] trait CryptoPlatform {
 
     def subtract(that: PublicKey): PublicKey = PublicKey(
       ByteVector.view(
-        point.add(that.asInstanceOf[PublicKeyPlatform].point).toRawBytes(true)
+        point
+          .subtract(that.asInstanceOf[PublicKeyPlatform].point)
+          .toRawBytes(true)
       )
     )
 

@@ -176,5 +176,44 @@ object CryptoTest extends TestSuite {
       )
       assert(Crypto.verifySignatureSchnorr(sig, msg, pubkey))
     }
+
+    test("ecc scalar math") {
+      val sk1 = PrivateKey(
+        hex"45022100fd567d121db66e382991534ada77a6bd3106f0a1098c231e47993447"
+      )
+      val sk2 = PrivateKey(
+        hex"d3f72100fd567d121db66e382991534ada77a6bd3106f0a1098c231e47993555"
+      )
+
+      test("add") {
+        (sk1 + sk2).value.toHex ==> "18f94201faacfa243b6cdc705322a696fa407093b2c541065345e7afbefc285b"
+      }
+      test("subtract") {
+        (sk1 - sk2).value.toHex ==> "710afffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364033"
+      }
+      test("multiply") {
+        (sk1 * sk2).value.toHex ==> "eef0a8c357919b7c21c0fbd9ec74442bcccb43cf8eee4ff488087332172043bc"
+      }
+    }
+
+    test("ecc point math") {
+      val pk1 = PrivateKey(
+        hex"45022100fd567d121db66e382991534ada77a6bd3106f0a1098c231e47993447"
+      ).publicKey
+      val sk2 = PrivateKey(
+        hex"d3f72100fd567d121db66e382991534ada77a6bd3106f0a1098c231e47993555"
+      )
+      val pk2 = sk2.publicKey
+
+      test("add") {
+        (pk1 + pk2).value.toHex ==> "0303f24810aafe764cf9573789953af913aaea5b2d92f8ee9a18bba3be16159c6e"
+      }
+      test("subtract") {
+        (pk1 - pk2).value.toHex ==> "03d1f90c3aa425ccf62ddf6edb280ea997a57cffa43abfd028b4ceba7a91a43ecd"
+      }
+      test("multiply") {
+        (pk1 * sk2).value.toHex ==> "02495ddcf039e394422e1733359e81c41207f42f37986953beb370223414e7005c"
+      }
+    }
   }
 }

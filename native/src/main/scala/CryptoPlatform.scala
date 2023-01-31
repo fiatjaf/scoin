@@ -17,7 +17,7 @@ private[scoin] trait CryptoPlatform {
   import Crypto._
 
   def randomBytes(length: Int): ByteVector = {
-    ByteVector(
+    ByteVector.view(
       (1 to (length.toDouble / 32).ceil.toInt).iterator
         .map(_ => secp256k1.createPrivateKey().value.map(_.toByte))
         .reduce(_ ++ _)
@@ -26,7 +26,7 @@ private[scoin] trait CryptoPlatform {
   }
 
   def G = PublicKey(
-    ByteVector(
+    ByteVector.view(
       Secp256k1.G.value.toArray.map[Byte](_.toByte)
     )
   )
@@ -36,55 +36,111 @@ private[scoin] trait CryptoPlatform {
     lazy val underlying =
       secp256k1.loadPrivateKey(value.toArray.map(_.toUByte)).toOption.get
 
-    def add(that: PrivateKey): PrivateKey = PrivateKey {
-      (BigInt(value.toHex, 16) + BigInt(that.value.toHex, 16)).mod(N)
-    }
+    def add(that: PrivateKey): PrivateKey =
+      PrivateKey(
+        ByteVector32(
+          ByteVector.view(
+            underlying
+              .add(that.value.toArray.map(_.toUByte))
+              .value
+              .map(_.toByte)
+          )
+        )
+      )
 
-    def subtract(that: PrivateKey): PrivateKey = PrivateKey {
-      val negThat = BigInt(N) - BigInt(that.value.toHex, 16)
-      (BigInt(value.toHex, 16) + negThat).mod(N)
-    }
+    def subtract(that: PrivateKey): PrivateKey =
+      PrivateKey(
+        ByteVector32(
+          ByteVector.view(
+            underlying
+              .add(
+                secp256k1
+                  .loadPrivateKey(that.value.toArray.map(_.toUByte))
+                  .toOption
+                  .get
+                  .negate()
+                  .value
+              )
+              .value
+              .map(_.toByte)
+          )
+        )
+      )
 
     def multiply(that: PrivateKey): PrivateKey =
       PrivateKey(
-        (BigInt(value.toHex, 16) * BigInt(that.value.toHex, 16)).mod(N)
+        ByteVector32(
+          ByteVector.view(
+            underlying
+              .multiply(that.value.toArray.map(_.toUByte))
+              .value
+              .map(_.toByte)
+          )
+        )
       )
 
     def publicKey: PublicKey =
       PublicKey(
-        ByteVector(underlying.publicKey().value.map(_.toByte))
+        ByteVector.view(underlying.publicKey().value.map(_.toByte))
       )
   }
 
   private[scoin] class PublicKeyPlatform(value: ByteVector) {
-    import scoin.reckless.Curve
-    val curve = Curve.secp256k1
-
     lazy val underlying =
       secp256k1.loadPublicKey(value.toArray.map(_.toUByte)).toOption.get
 
-    def add(that: PublicKey): PublicKey = {
-      val lhs = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
-      val rhs = curve.CurvePoint.fromUnCompressed(that.toUncompressedBin)
-      Crypto.PublicKey(Curve.pointAdd(curve)(lhs, rhs).compressed, false)
-    }
+    def add(that: PublicKey): PublicKey = PublicKey(
+      ByteVector(
+        underlying
+          .add(
+            secp256k1
+              .loadPublicKey(that.value.toArray.map(_.toUByte))
+              .toOption
+              .get
+          )
+          .value
+          .map(_.toByte)
+      )
+    )
 
     def add(that: PrivateKey): PublicKey =
-      ??? // not currently used by any tests
+      PublicKey(
+        ByteVector.view(
+          underlying
+            .add(
+              that.value.toArray.map(_.toUByte)
+            )
+            .value
+            .map(_.toByte)
+        )
+      )
 
     def subtract(that: PublicKey): PublicKey =
-      ??? // not currently used by any tests
-
-    def multiply(that: PrivateKey): PublicKey = {
-      val point = curve.CurvePoint.fromUnCompressed(this.toUncompressedBin)
-      Crypto.PublicKey(
-        Curve
-          .multByScalar(curve)(point, BigInt(that.value.toHex, 16))
-          .compressed
+      PublicKey(
+        ByteVector.view(
+          underlying
+            .add(
+              secp256k1
+                .loadPublicKey(that.value.toArray.map(_.toUByte))
+                .toOption
+                .get
+                .negate()
+            )
+            .value
+            .map(_.toByte)
+        )
       )
-    }
 
-    def toUncompressedBin: ByteVector = ByteVector(
+    def multiply(that: PrivateKey): PublicKey = PublicKey(
+      ByteVector(
+        underlying
+          .multiply(that.value.toArray.map(_.toUByte))
+          .value
+          .map(_.toByte)
+      )
+    )
+
+    def toUncompressedBin: ByteVector = ByteVector.view(
       underlying.toUncompressed().map(_.toByte)
     )
   }
@@ -94,19 +150,19 @@ private[scoin] trait CryptoPlatform {
 
   def sha256(x: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector(
+      ByteVector.view(
         sha256sum(x.toArray.map[UByte](_.toUByte))
           .map[Byte](_.toByte)
       )
     )
 
   def sha512(x: ByteVector): ByteVector =
-    ByteVector(
+    ByteVector.view(
       sha512sum(x.toArray.map[UByte](_.toUByte)).map[Byte](_.toByte)
     )
 
   def hmac512(key: ByteVector, data: ByteVector): ByteVector =
-    ByteVector(
+    ByteVector.view(
       hmac512sum(
         key.toArray.map[UByte](_.toUByte),
         data.toArray.map[UByte](_.toUByte)
@@ -116,7 +172,7 @@ private[scoin] trait CryptoPlatform {
 
   def hmac256(key: ByteVector, message: ByteVector): ByteVector32 =
     ByteVector32(
-      ByteVector(
+      ByteVector.view(
         hmac256sum(
           key.toArray.map[UByte](_.toUByte),
           message.toArray.map[UByte](_.toUByte)
@@ -126,7 +182,7 @@ private[scoin] trait CryptoPlatform {
     )
 
   def ripemd160(input: ByteVector): ByteVector =
-    ByteVector(
+    ByteVector.view(
       ripemd160sum(input.toArray.map[UByte](_.toUByte))
         .map[Byte](_.toByte)
     )
@@ -159,7 +215,7 @@ private[scoin] trait CryptoPlatform {
 
   def sign(data: Array[Byte], privateKey: PrivateKey): ByteVector64 =
     ByteVector64(
-      ByteVector(
+      ByteVector.view(
         privateKey.underlying
           .sign(data.map(_.toUByte))
           .toOption
@@ -174,7 +230,7 @@ private[scoin] trait CryptoPlatform {
       auxrand32: Option[ByteVector32]
   ): ByteVector64 =
     ByteVector64(
-      ByteVector(
+      ByteVector.view(
         privateKey.underlying
           .signSchnorr(
             data.bytes.toArray.map(_.toUByte),
@@ -225,7 +281,7 @@ private[scoin] trait CryptoPlatform {
       recoveryId: Int
   ): PublicKey =
     PublicKey(
-      ByteVector(
+      ByteVector.view(
         secp256k1
           .recoverPublicKey(
             message.toArray.map(_.toUByte),
@@ -243,7 +299,7 @@ private[scoin] trait CryptoPlatform {
       input: ByteVector,
       key: ByteVector,
       nonce: ByteVector
-  ): ByteVector = ByteVector(
+  ): ByteVector = ByteVector.view(
     ChaCha20
       .xor(
         input.toArray.map(_.toUByte),
@@ -259,7 +315,7 @@ private[scoin] trait CryptoPlatform {
         key: ByteVector,
         nonce: ByteVector,
         aad: ByteVector
-    ): ByteVector = ByteVector(
+    ): ByteVector = ByteVector.view(
       c20p1305encrypt(
         plaintext.toArray.map(_.toUByte),
         key.toArray.map(_.toUByte),
@@ -274,7 +330,7 @@ private[scoin] trait CryptoPlatform {
         key: ByteVector,
         nonce: ByteVector,
         aad: ByteVector
-    ): ByteVector = ByteVector(
+    ): ByteVector = ByteVector.view(
       c20p1305decrypt(
         ciphertext.toArray.map(_.toUByte),
         key.toArray.map(_.toUByte),

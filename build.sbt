@@ -1,10 +1,10 @@
-ThisBuild / scalaVersion        := "3.2.0"
+ThisBuild / scalaVersion        := "3.2.2"
 ThisBuild / organization        := "com.fiatjaf"
 ThisBuild / homepage            := Some(url("https://github.com/fiatjaf/scoin"))
 ThisBuild / licenses            += License.Apache2
 ThisBuild / developers          := List(tlGitHubDev("fiatjaf", "fiatjaf"))
 
-ThisBuild / version             := "0.5.0"
+ThisBuild / version             := "0.6.0"
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -48,7 +48,7 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     scalaVersion := "3.2.0",
     libraryDependencies ++= Seq(
       "com.fiatjaf" %%% "sn-sha256" % "0.4.1",
-      "com.fiatjaf" %%% "sn-secp256k1" % "0.4.0",
+      "com.fiatjaf" %%% "sn-secp256k1" % "0.5.0",
       "com.fiatjaf" %%% "sn-chacha20poly1305" % "0.2.1"
     )
   )
