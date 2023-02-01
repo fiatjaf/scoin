@@ -377,7 +377,7 @@ object TaprootTest extends TestSuite {
         ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
       )
 
-      // spend with sigs #1 and #2
+      // spend with sigs #0 and #2
       val tx2 = tmp.updateWitness(
         0,
         ScriptWitness(
