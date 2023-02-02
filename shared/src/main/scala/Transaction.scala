@@ -641,44 +641,96 @@ object Transaction extends BtcSerializer[Transaction] {
       tapleafHash: Option[ByteVector32] = None,
       codeSeparatorPos: Long = 0xffffffffL
   ): ByteVector32 = {
+    val isBIP118 = (sighashType & 0x40) != 0 // BIP-118: Msg118() != SigMsg()
+
     val out = new ByteArrayOutputStream()
     out.write(0)
     require(
       sighashType <= 0x03 || (0x81 to 0x83).contains(sighashType),
       "invalid sighash type for hashForSigningSchnorr"
     )
+
+    // Control
     out.write(sighashType)
-    val txData = tx.transactionData(inputs, sighashType)
-    out.write(txData.toArray)
+
+    // Transaction data
+    Protocol.writeUInt32(tx.version, out)
+    Protocol.writeUInt32(tx.lockTime, out)
+
+    if (!isBIP118) {
+      // only BIP-341
+      if ((sighashType & 0x80) != SIGHASH_ANYONECANPAY) {
+        out.write(prevoutsSha256(tx).toArray)
+        out.write(amountsSha256(inputs).toArray)
+        out.write(scriptPubkeysSha256(inputs).toArray)
+        out.write(sequencesSha256(tx).toArray)
+      }
+    }
+
+    if (
+      (sighashType & 3) != SIGHASH_NONE &&
+      (sighashType & 3) != SIGHASH_SINGLE
+    ) {
+      out.write(outputsSha256(tx).toArray)
+    }
+
+    // Data about this input
     val (extFlag, keyVersion) = sigVersion match {
       case SigVersion.SIGVERSION_TAPSCRIPT => (1, 0)
       case _                               => (0, 0)
     }
     val spendType = 2 * extFlag + (if (annex.nonEmpty) 1 else 0)
     out.write(spendType)
-    if ((sighashType & 0x80) == SIGHASH_ANYONECANPAY) {
-      OutPoint.write(tx.txIn(inputIndex).outPoint, out)
-      writeUInt64(inputs(inputIndex).amount.toLong, out)
-      writeScript(inputs(inputIndex).publicKeyScript.toArray, out)
-      writeUInt32(tx.txIn(inputIndex).sequence.toInt, out)
+
+    if (!isBIP118) {
+      // only in BIP-341
+      if ((sighashType & 0x80) == SIGHASH_ANYONECANPAY) {
+        OutPoint.write(tx.txIn(inputIndex).outPoint, out)
+        writeUInt64(inputs(inputIndex).amount.toLong, out)
+        writeScript(inputs(inputIndex).publicKeyScript.toArray, out)
+        writeUInt32(tx.txIn(inputIndex).sequence.toInt, out)
+      } else {
+        writeUInt32(inputIndex.toInt, out)
+      }
     } else {
-      writeUInt32(inputIndex.toInt, out)
+      // only BIP-118
+      if ((sighashType & 0xc0) == SIGHASH_ANYPREVOUT) {
+        writeUInt64(inputs(inputIndex).amount.toLong, out)
+        writeScript(inputs(inputIndex).publicKeyScript.toArray, out)
+      }
+      writeUInt32(tx.txIn(inputIndex).sequence.toInt, out)
     }
+
     if (annex.nonEmpty) {
       val buffer = new ByteArrayOutputStream()
       writeScript(annex.get.toArray, buffer)
       val annexHash = Crypto.sha256(ByteVector(buffer.toByteArray()))
       out.write(annexHash.toArray)
     }
+
+    // Data about this output
     if ((sighashType & 3) == SIGHASH_SINGLE) {
       val ser = TxOut.write(tx.txOut(inputIndex))
       out.write(Crypto.sha256(ser).toArray)
     }
+
+    // Extension (BIP-342 or BIP-118)
     if (sigVersion == SigVersion.SIGVERSION_TAPSCRIPT) {
-      tapleafHash.foreach(h => out.write(h.toArray))
-      out.write(keyVersion)
-      writeUInt32(codeSeparatorPos, out)
+      if (!isBIP118) {
+        // BIP-342: Common Signature Message Extension
+        tapleafHash.foreach(h => out.write(h.toArray))
+        out.write(keyVersion)
+        writeUInt32(codeSeparatorPos, out)
+      } else {
+        // BIP-118: Ext118()
+        if ((sighashType & 0xc0) != SIGHASH_ANYPREVOUTANYSCRIPT) {
+          tapleafHash.foreach(h => out.write(h.toArray))
+        }
+        out.write(0x01)
+        writeUInt32(codeSeparatorPos, out)
+      }
     }
+
     val preimage = out.toByteArray()
     Crypto.taggedHash(ByteVector(preimage), "TapSighash")
   }
@@ -973,22 +1025,4 @@ case class Transaction(
     Transaction.weight(this, protocolVersion)
 
   override def serializer: BtcSerializer[Transaction] = Transaction
-
-  def transactionData(inputs: List[TxOut], sighashType: Int): ByteVector = {
-    val out = new ByteArrayOutputStream()
-    Protocol.writeUInt32(version, out)
-    Protocol.writeUInt32(lockTime, out)
-    if ((sighashType & 0x80) != SIGHASH_ANYONECANPAY) {
-      out.write(prevoutsSha256(this).toArray)
-      out.write(amountsSha256(inputs).toArray)
-      out.write(scriptPubkeysSha256(inputs).toArray)
-      out.write(sequencesSha256(this).toArray)
-    }
-    if (
-      (sighashType & 3) != SIGHASH_NONE && (sighashType & 3) != SIGHASH_SINGLE
-    ) {
-      out.write(outputsSha256(this).toArray)
-    }
-    return ByteVector(out.toByteArray())
-  }
 }

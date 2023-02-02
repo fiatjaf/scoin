@@ -24,6 +24,8 @@ package object scoin {
   val SIGHASH_ANYONECANPAY = 0x80
   val SIGHASH_DEFAULT: Int =
     0 // !< Taproot only; implied when sighash byte is missing, and equivalent to SIGHASH_ALL
+  val SIGHASH_ANYPREVOUT = 0x40
+  val SIGHASH_ANYPREVOUTANYSCRIPT = 0xc0
   val SIGHASH_OUTPUT_MASK: Int = 3
   val SIGHASH_INPUT_MASK: Int = 0x80
 
