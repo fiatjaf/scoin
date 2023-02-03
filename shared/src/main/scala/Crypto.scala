@@ -735,6 +735,35 @@ object Crypto extends CryptoPlatform {
   }
 
   /**
+    * Tweak a valid schnorr signature `(R,s)` with a scalar value `t`
+    * to create an adaptor signature `(R - t*G, s - t, t*G). Anybody
+    * with knowledge of `t` will be able to repair the resulting adaptor
+    * signature to reconstruct the valid original signature. Because
+    * knowledge of the signing key was not necessary to create the adaptor
+    * signature, this shows that adaptor signatures posess a denaibility
+    * property.
+    * see: https://suredbits.com/schnorr-applications-scriptless-scripts/ 
+    *
+    * @param sig
+    * @param scalarTweak
+    * @return
+    */
+  def tweakSchnorrSignatureWithScalar(
+    sig: ByteVector64,
+    scalarTweak: ByteVector32
+  ): ByteVector = {
+    val (pointR,s) = (
+      XOnlyPublicKey(ByteVector32(sig.take(32))),
+      PrivateKey(ByteVector32(sig.drop(32)))
+    )
+    val t = PrivateKey(scalarTweak)
+    val tweakPoint = t.publicKey
+    (pointR.publicKey - tweakPoint).xonly.value ++
+    (s - t).value ++
+    tweakPoint.xonly.value
+  }
+
+  /**
     * Verify an "Adaptor Signature." If verification is successful and the
     * verifier knows the discrete logarithm (private key) for the `tweakPoint`,
     * then verifier will be able to repair the adaptor signature into a complete

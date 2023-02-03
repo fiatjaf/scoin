@@ -73,5 +73,40 @@ object AdaptorSigsTest extends TestSuite {
       )
       assert(verifySignatureSchnorr(repairedSig,msg,priv.publicKey.xonly))
     }
+
+    test("adaptor signature deniability") {
+      import Crypto._
+
+      val priv = PrivateKey(ByteVector32.fromValidHex("67E56582298859DDAE725F972992A07C6C4FB9F62A8FFF58CE3CA926A1063530"))
+
+      // normally the message to be signed is (the hash of) a bitcoin transaction
+      val data = sha256(ByteVector("abc".getBytes))
+
+      // create normal signature
+      val sig = signSchnorr(data,priv,auxrand32 = None)
+
+      // a scalar value which is the discrete logarithm of the "tweakPoint"
+      // Knowledge of this value is necessary in order to repair the adaptor 
+      // signature into a valid BIP340 schnorr signature.
+      val tweak = sha256(ByteVector("efg".getBytes))
+
+      // turn the original signature into an adaptor signature
+      // notice how we did not need the signer's private key to do this,
+      // so this demonstrates a deniability property of adaptor signatures
+      // anybody can make them! (if you have a valid signature to start with first)
+      val adaptorSig = tweakSchnorrSignatureWithScalar(sig,tweak)
+
+      val repairedSig = repairSchnorrAdaptorSignature(
+        adaptorSig,
+        data,
+        priv.publicKey,
+        tweak
+      )
+      // repaired signature is valid
+      assert(verifySignatureSchnorr(repairedSig,data,priv.publicKey.xonly))
+
+      // repaired signature is the same as the original
+      assert(repairedSig == sig)
+    }
   }
 }
