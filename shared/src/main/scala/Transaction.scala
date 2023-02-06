@@ -13,6 +13,9 @@ object OutPoint extends BtcSerializer[OutPoint] {
   def apply(tx: Transaction, index: Int) =
     new OutPoint(ByteVector32(tx.hash), index)
 
+  // this is just a helper for usage with SIGHASH_ANYPREVOUT constructions
+  def placeholder = new OutPoint(ByteVector32.Zeroes, 0)
+
   override def read(input: InputStream, protocolVersion: Long): OutPoint =
     OutPoint(hash(input), uint32(input))
 

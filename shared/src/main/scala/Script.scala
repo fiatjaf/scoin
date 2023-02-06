@@ -676,7 +676,8 @@ object Script {
         sigBytes: ByteVector,
         scriptCode: ByteVector,
         signatureVersion: Int,
-        codeSeparatorPos: Long
+        codeSeparatorPos: Long,
+        internalKey: Option[XOnlyPublicKey] = None // only on tapscript
     ): Boolean = {
       signatureVersion match {
         case v
@@ -685,8 +686,15 @@ object Script {
         case SigVersion.SIGVERSION_TAPROOT =>
           false // Key path spending in Taproot has no script, so this is unreachable.
         case SigVersion.SIGVERSION_TAPSCRIPT =>
+          // transform bip118 pubkeys into normal keys
+          val actualPubKey =
+            if (pubKey.size == 1 && pubKey(0) == 0x01)
+              internalKey.get.value.bytes
+            else if (pubKey.size == 33 && pubKey(0) == 0x01) pubKey.drop(1)
+            else pubKey
+
           checkSignatureSchnorr(
-            pubKey,
+            actualPubKey,
             sigBytes,
             scriptCode,
             signatureVersion,
@@ -745,44 +753,22 @@ object Script {
       *
       * @param script
       *   serialized script
-      * @return
-      *   the stack created by the script
-      */
-    def run(script: ByteVector): Stack = run(parse(script))
-
-    /** execute a script, starting from an empty stack
-      *
-      * @return
-      *   the stack created by the script
-      */
-    def run(script: List[ScriptElt]): Stack =
-      run(script, List.empty[ByteVector])
-
-    /** execute a serialized script, starting from an existing stack
-      *
-      * @param script
-      *   serialized script
       * @param stack
       *   initial stack
+      * @param signatureVersion
+      *   default, segwitv0, tapscript, etc
       * @return
-      *   the stack updated by the script
+      *   the stack created by the script
       */
-    def run(script: ByteVector, stack: Stack): Stack = run(parse(script), stack)
-
-    def run(script: ByteVector, signatureVersion: Int): Stack =
-      run(script, stack = List.empty, signatureVersion)
-
-    def run(script: ByteVector, stack: Stack, signatureVersion: Int): Stack = {
-      if (
-        signatureVersion == SigVersion.SIGVERSION_BASE || signatureVersion == SigVersion.SIGVERSION_WITNESS_V0
-      ) {
-        require(script.size <= MAX_SCRIPT_SIZE, "Script is too large")
-      }
+    def run(
+        script: ByteVector,
+        stack: Stack,
+        signatureVersion: Int
+    ): Stack = {
+      // if there is no internalKey this is not taproot, so check for script size
+      require(script.size <= MAX_SCRIPT_SIZE, "Script is too large")
       run(parse(script), stack, signatureVersion)
     }
-
-    def run(script: List[ScriptElt], stack: Stack): Stack =
-      run(script, stack, SigVersion.SIGVERSION_BASE)
 
     /** execute a script, starting from an existing stack
       *
@@ -812,6 +798,25 @@ object Script {
         signatureVersion
       )
 
+    def run(
+        script: List[ScriptElt],
+        stack: Stack,
+        signatureVersion: Int,
+        internalKey: XOnlyPublicKey
+    ): Stack =
+      run(
+        script,
+        stack,
+        State(
+          conditions = List.empty[Boolean],
+          altstack = List.empty[ByteVector],
+          opCount = 0,
+          scriptCode = script
+        ),
+        signatureVersion,
+        internalKey
+      )
+
     /** execute a bitcoin script
       *
       * @param script
@@ -835,7 +840,35 @@ object Script {
           s"at least one stack item is bigger than the max push size of $MAX_SCRIPT_ELEMENT_SIZE bytes"
         )
       )
-      runInternal(script.zipWithIndex.toList, stack, state, signatureVersion)
+      runInternal(
+        script.zipWithIndex.toList,
+        stack,
+        state,
+        signatureVersion,
+        None
+      )
+    }
+
+    def run(
+        script: List[ScriptElt],
+        stack: Stack,
+        state: State,
+        signatureVersion: Int,
+        internalKey: XOnlyPublicKey
+    ): Stack = {
+      stack.foreach(i =>
+        require(
+          i.size <= MAX_SCRIPT_ELEMENT_SIZE,
+          s"at least one stack item is bigger than the max push size of $MAX_SCRIPT_ELEMENT_SIZE bytes"
+        )
+      )
+      runInternal(
+        script.zipWithIndex.toList,
+        stack,
+        state,
+        signatureVersion,
+        Some(internalKey)
+      )
     }
 
     @tailrec
@@ -843,7 +876,8 @@ object Script {
         script: List[(ScriptElt, Int)],
         stack: Stack,
         state: State,
-        signatureVersion: Int
+        signatureVersion: Int,
+        internalKey: Option[XOnlyPublicKey]
     ): Stack = {
       import state._
       callback.map(f => f(script.map(_._1), stack, state))
@@ -859,6 +893,13 @@ object Script {
           "operation count is over the limit"
         )
       }
+      if (signatureVersion == SigVersion.SIGVERSION_TAPSCRIPT) {
+        require(
+          internalKey.isDefined,
+          "when running tapscripts internalKey must be present"
+        )
+      }
+
       script match {
         // first, things that are always checked even in non-executed IF branches
         case Nil if conditions.nonEmpty =>
@@ -884,7 +925,8 @@ object Script {
             tail,
             stack,
             state.copy(conditions = false :: conditions, opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_IF, curPos) :: tail =>
           stack match {
@@ -895,7 +937,8 @@ object Script {
                 stacktail,
                 state
                   .copy(conditions = true :: conditions, opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case False :: stacktail
                 if signatureVersion == SigVersion.SIGVERSION_WITNESS_V0 && (scriptFlag & SCRIPT_VERIFY_MINIMALIF) != 0 =>
@@ -906,7 +949,8 @@ object Script {
                   conditions = false :: conditions,
                   opCount = opCount + 1
                 ),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ :: stacktail
                 if signatureVersion == SigVersion.SIGVERSION_WITNESS_V0 && (scriptFlag & SCRIPT_VERIFY_MINIMALIF) != 0 =>
@@ -920,7 +964,8 @@ object Script {
                 stacktail,
                 state
                   .copy(conditions = true :: conditions, opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case head :: stacktail =>
               runInternal(
@@ -930,7 +975,8 @@ object Script {
                   conditions = false :: conditions,
                   opCount = opCount + 1
                 ),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ => throw new MatchError(stack)
           }
@@ -939,7 +985,8 @@ object Script {
             tail,
             stack,
             state.copy(conditions = true :: conditions, opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_NOTIF, curPos) :: tail =>
           stack match {
@@ -950,7 +997,8 @@ object Script {
                 stacktail,
                 state
                   .copy(conditions = true :: conditions, opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case True :: stacktail
                 if signatureVersion == SigVersion.SIGVERSION_WITNESS_V0 && (scriptFlag & SCRIPT_VERIFY_MINIMALIF) != 0 =>
@@ -961,7 +1009,8 @@ object Script {
                   conditions = false :: conditions,
                   opCount = opCount + 1
                 ),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ :: stacktail
                 if signatureVersion == SigVersion.SIGVERSION_WITNESS_V0 && (scriptFlag & SCRIPT_VERIFY_MINIMALIF) != 0 =>
@@ -977,7 +1026,8 @@ object Script {
                   conditions = false :: conditions,
                   opCount = opCount + 1
                 ),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case head :: stacktail =>
               runInternal(
@@ -985,7 +1035,8 @@ object Script {
                 stacktail,
                 state
                   .copy(conditions = true :: conditions, opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ => throw new MatchError(stack)
           }
@@ -997,38 +1048,49 @@ object Script {
               conditions = !conditions.head :: conditions.tail,
               opCount = opCount + 1
             ),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_ENDIF, _) :: tail =>
           runInternal(
             tail,
             stack,
             state.copy(conditions = conditions.tail, opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case head :: tail if conditions.contains(false) =>
           runInternal(
             tail,
             stack,
             state.copy(opCount = opCount + cost(head._1)),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         // and now, things that are checked only in an executed IF branch
         case (OP_0, _) :: tail =>
-          runInternal(tail, ByteVector.empty :: stack, state, signatureVersion)
+          runInternal(
+            tail,
+            ByteVector.empty :: stack,
+            state,
+            signatureVersion,
+            internalKey
+          )
         case (op, _) :: tail if isSimpleValue(op) =>
           runInternal(
             tail,
             encodeNumber(simpleValue(op)) :: stack,
             state,
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_NOP, _) :: tail =>
           runInternal(
             tail,
             stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (op, _) :: tail
             if isUpgradableNop(
@@ -1040,7 +1102,8 @@ object Script {
             tail,
             stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_1ADD, _) :: tail if stack.isEmpty =>
           throw new RuntimeException("cannot run OP_1ADD on am empty stack")
@@ -1049,7 +1112,8 @@ object Script {
             tail,
             encodeNumber(decodeNumber(stack.head) + 1) :: stack.tail,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_1SUB, _) :: tail if stack.isEmpty =>
           throw new RuntimeException("cannot run OP_1SUB on am empty stack")
@@ -1058,7 +1122,8 @@ object Script {
             tail,
             encodeNumber(decodeNumber(stack.head) - 1) :: stack.tail,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_ABS, _) :: tail if stack.isEmpty =>
           throw new RuntimeException("cannot run OP_ABS on am empty stack")
@@ -1067,7 +1132,8 @@ object Script {
             tail,
             encodeNumber(Math.abs(decodeNumber(stack.head))) :: stack.tail,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_ADD, _) :: tail =>
           stack match {
@@ -1079,7 +1145,8 @@ object Script {
                 tail,
                 encodeNumber(result) :: stacktail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1096,7 +1163,8 @@ object Script {
                 tail,
                 encodeNumber(result) :: stacktail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1113,7 +1181,8 @@ object Script {
                 tail,
                 encodeNumber(result) :: stacktail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1148,7 +1217,8 @@ object Script {
                 tail,
                 stack,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1163,7 +1233,8 @@ object Script {
             tail,
             stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CHECKSEQUENCEVERIFY, _) :: tail
             if (scriptFlag & SCRIPT_VERIFY_CHECKSEQUENCEVERIFY) != 0 =>
@@ -1194,7 +1265,8 @@ object Script {
                 tail,
                 stack,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1209,7 +1281,8 @@ object Script {
             tail,
             stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CHECKSIG, _) :: tail =>
           stack match {
@@ -1231,7 +1304,8 @@ object Script {
                 sigBytes,
                 Script.write(scriptCode1),
                 signatureVersion,
-                codeSeparatorPos
+                codeSeparatorPos,
+                internalKey
               )
               if (!success && (scriptFlag & SCRIPT_VERIFY_NULLFAIL) != 0) {
                 require(
@@ -1243,7 +1317,8 @@ object Script {
                 tail,
                 (if (success) True else False) :: stacktail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case _ =>
               throw new RuntimeException(
@@ -1255,7 +1330,8 @@ object Script {
             (OP_CHECKSIG, curPos) :: (OP_VERIFY, curPos) :: tail,
             stack,
             state.copy(opCount = opCount - 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CHECKSIGADD, _) :: tail =>
           // OP_CHECKSIGADD is only available in Tapscript
@@ -1275,13 +1351,15 @@ object Script {
             sigBytes,
             write(state.scriptCode),
             signatureVersion,
-            state.codeSeparatorPos
+            state.codeSeparatorPos,
+            internalKey
           )
           runInternal(
             tail,
             (encodeNumber(num + (if (success) 1 else 0))) :: stack.drop(3),
             state.copy(opCount = state.opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CHECKMULTISIG, curPos) :: tail =>
           require(
@@ -1344,28 +1422,32 @@ object Script {
             tail,
             (if (success) True else False) :: stack4,
             state.copy(opCount = nextOpCount),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CHECKMULTISIGVERIFY, curPos) :: tail =>
           runInternal(
             (OP_CHECKMULTISIG, curPos) :: (OP_VERIFY, curPos) :: tail,
             stack,
             state.copy(opCount = opCount - 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_CODESEPARATOR, _) :: tail =>
           runInternal(
             tail,
             stack,
             state.copy(opCount = opCount + 1, scriptCode = tail.map(_._1)),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_DEPTH, _) :: tail =>
           runInternal(
             tail,
             encodeNumber(stack.length) :: stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         case (OP_SIZE, _) :: _ if stack.isEmpty =>
           throw new RuntimeException("Cannot run OP_SIZE on an empty stack")
@@ -1374,7 +1456,8 @@ object Script {
             tail,
             encodeNumber(stack.head.length) :: stack,
             state.copy(opCount = opCount + 1),
-            signatureVersion
+            signatureVersion,
+            internalKey
           )
         // too lazy to change all the other case statements, so wrapping the reamining ones
         // in an outer match statement. Probably should have done it this way from the start.
@@ -1385,21 +1468,24 @@ object Script {
                 indexedTail,
                 stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_2DROP :: tail =>
               runInternal(
                 indexedTail,
                 stack.tail.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_DUP :: tail =>
               runInternal(
                 indexedTail,
                 stack.head :: stack,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_2DUP :: tail =>
               stack match {
@@ -1408,7 +1494,8 @@ object Script {
                     indexedTail,
                     x1 :: x2 :: x1 :: x2 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1422,7 +1509,8 @@ object Script {
                     indexedTail,
                     x1 :: x2 :: x3 :: x1 :: x2 :: x3 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1436,14 +1524,16 @@ object Script {
                     indexedTail,
                     False :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case a :: b :: stacktail =>
                   runInternal(
                     indexedTail,
                     True :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1461,7 +1551,8 @@ object Script {
                     indexedTail,
                     stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1473,21 +1564,24 @@ object Script {
                 indexedTail,
                 altstack.head :: stack,
                 state.copy(altstack = altstack.tail),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_HASH160 :: tail =>
               runInternal(
                 indexedTail,
                 Crypto.hash160(stack.head) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_HASH256 :: tail =>
               runInternal(
                 indexedTail,
                 Crypto.hash256(stack.head) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_IFDUP :: tail =>
               stack match {
@@ -1500,14 +1594,16 @@ object Script {
                     indexedTail,
                     head :: stack,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   runInternal(
                     indexedTail,
                     stack,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
               }
             case OP_LESSTHAN :: tail =>
@@ -1518,7 +1614,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1534,7 +1631,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1549,7 +1647,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1565,7 +1664,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1582,7 +1682,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1599,7 +1700,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1615,7 +1717,8 @@ object Script {
                 indexedTail,
                 encodeNumber(-decodeNumber(stack.head)) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_NIP :: tail =>
               stack match {
@@ -1624,7 +1727,8 @@ object Script {
                     indexedTail,
                     x1 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1640,7 +1744,8 @@ object Script {
                   if (decodeNumber(stack.head) == 0) 1 else 0
                 ) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_0NOTEQUAL :: tail if stack.isEmpty =>
               throw new RuntimeException(
@@ -1653,7 +1758,8 @@ object Script {
                   if (decodeNumber(stack.head) == 0) 0 else 1
                 ) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_NUMEQUAL :: tail =>
               stack match {
@@ -1664,7 +1770,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1680,7 +1787,8 @@ object Script {
                     indexedTail,
                     stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1696,7 +1804,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1710,7 +1819,8 @@ object Script {
                     indexedTail,
                     x2 :: stack,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1724,7 +1834,8 @@ object Script {
                     indexedTail,
                     x3 :: x4 :: stack,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1739,7 +1850,8 @@ object Script {
                     indexedTail,
                     stacktail(n) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1751,7 +1863,13 @@ object Script {
                   .isMinimal(data, code) =>
               throw new RuntimeException("not minimal push")
             case OP_PUSHDATA(data, _) :: tail =>
-              runInternal(indexedTail, data :: stack, state, signatureVersion)
+              runInternal(
+                indexedTail,
+                data :: stack,
+                state,
+                signatureVersion,
+                internalKey
+              )
             case OP_ROLL :: tail =>
               stack match {
                 case head :: stacktail =>
@@ -1762,7 +1880,8 @@ object Script {
                       stacktail.length - 1 - n
                     ),
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1776,7 +1895,8 @@ object Script {
                     indexedTail,
                     x3 :: x1 :: x2 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1790,7 +1910,8 @@ object Script {
                     indexedTail,
                     x5 :: x6 :: x1 :: x2 :: x3 :: x4 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1802,21 +1923,24 @@ object Script {
                 indexedTail,
                 Crypto.ripemd160(stack.head) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_SHA1 :: tail =>
               runInternal(
                 indexedTail,
                 Crypto.sha1(stack.head) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_SHA256 :: tail =>
               runInternal(
                 indexedTail,
                 Crypto.sha256(stack.head) :: stack.tail,
                 state.copy(opCount = opCount + 1),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_SUB :: tail =>
               stack match {
@@ -1826,7 +1950,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1841,7 +1966,8 @@ object Script {
                     indexedTail,
                     x2 :: x1 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1855,7 +1981,8 @@ object Script {
                     indexedTail,
                     x3 :: x4 :: x1 :: x2 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1867,7 +1994,8 @@ object Script {
                 indexedTail,
                 stack.tail,
                 state.copy(altstack = stack.head :: altstack),
-                signatureVersion
+                signatureVersion,
+                internalKey
               )
             case OP_TUCK :: tail =>
               stack match {
@@ -1876,7 +2004,8 @@ object Script {
                     indexedTail,
                     x1 :: x2 :: x1 :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -1896,7 +2025,8 @@ object Script {
                     indexedTail,
                     stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
               }
             case OP_WITHIN :: tail =>
@@ -1910,7 +2040,8 @@ object Script {
                     indexedTail,
                     encodeNumber(result) :: stacktail,
                     state.copy(opCount = opCount + 1),
-                    signatureVersion
+                    signatureVersion,
+                    internalKey
                   )
                 case _ =>
                   throw new RuntimeException(
@@ -2089,9 +2220,10 @@ object Script {
                 return
               }
               val finalStack = run(
-                script,
+                parse(script),
                 stack.dropRight(2).reverse.toList,
-                SigVersion.SIGVERSION_TAPSCRIPT
+                SigVersion.SIGVERSION_TAPSCRIPT,
+                internalKey
               )
               checkFinalStack(finalStack)
             } else {
@@ -2208,7 +2340,8 @@ object Script {
           // if we got here after running script pubkey, it means that hash == HASH160(serialized script)
           // and stack would be serialized_script :: sigN :: ... :: sig1 :: Nil
           // we pop the first element of the stack, deserialize it and run it against the rest of the stack
-          val stackp2sh = run(stack.head, stack.tail)
+          val stackp2sh =
+            run(stack.head, stack.tail, SigVersion.SIGVERSION_BASE)
           require(
             stackp2sh.nonEmpty,
             "Script verification failed, stack should not be empty"

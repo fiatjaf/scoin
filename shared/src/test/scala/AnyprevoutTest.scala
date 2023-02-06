@@ -10,63 +10,111 @@ import scoin.Crypto.PrivateKey
 import scoin.Crypto.PublicKey
 import scala.util.Failure
 import scala.util.Success
+import scoin.ScriptElt.elt2code
 
 object AnyprevoutTest extends TestSuite {
   val tests = Tests {
-    test("build anyprevout tx") {
+    test("build spacechain bmm of length 1") {
+      /*
+       * tx1[_: [ANYPREVOUT <sig> <G> CHECKSIG]] -> tx2[_: OP_RETURN the end]
+       *                     this sig signs tx2 which spends tx1
+       * https://gist.githubusercontent.com/RubenSomsen/5e4be6d18e5fa526b17d8b34906b16a5/raw/eb7779f0ce48f84956d1be25a94f63371ff6090a/BMM.svg
+       * https://youtu.be/N2ow4Q34Jeg?t=2214
+       */
+      // now we the sig we can do the magic described at
+
       val priv = Crypto.PrivateKey(1)
       val pub = priv.publicKey
 
       assert(pub == Crypto.G)
 
-      val script = List(
-        // OP_PUSHDATA(ByteVector.view),
-        OP_PUSHDATA(ByteVector.view(Array[Byte](0x01))),
+      val (tx2, sig2) = {
+        val tx = Transaction(
+          version = 2,
+          txIn = List.empty, // empty for now, will be filled later
+          txOut = List(
+            TxOut(
+              Satoshi(0),
+              Script.write(
+                List(
+                  OP_RETURN,
+                  OP_PUSHDATA(ByteVector.view("the end".getBytes()))
+                )
+              )
+            )
+          ),
+          lockTime = 0
+        )
+
+        // compute the tx hash. since we're using anyprevoutanyscript we don't care about the inputs
+        val hash = Transaction.hashForSigningSchnorr(
+          tx,
+          0,
+          List(tx.txOut(0)),
+          SIGHASH_ANYPREVOUTANYSCRIPT & SIGHASH_SINGLE,
+          SigVersion.SIGVERSION_TAPSCRIPT,
+          annex = None,
+          tapleafHash = None // because of anyprevoutanyscript this can be None
+        )
+
+        val sig = Crypto.signSchnorr(hash, priv, None)
+
+        (tx, sig)
+      }
+
+      val script1 = List(
+        OP_PUSHDATA(sig2), // covenant here (magic)
+        OP_1,
         OP_CHECKSIG
       )
 
-      // simple script tree with a single element
-      val scriptTree = ScriptTree.Leaf(
-        ScriptLeaf(0, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
-      )
-      val merkleRoot = ScriptTree.hash(scriptTree)
+      val (tweakedKey2, controlBlock2) = {
+        // simple script tree with a single element
+        val scriptTree = ScriptTree.Leaf(
+          ScriptLeaf(0, Script.write(script1), Script.TAPROOT_LEAF_TAPSCRIPT)
+        )
+        val merkleRoot = ScriptTree.hash(scriptTree)
 
-      val internalPubkey = XOnlyPublicKey(pub)
-      val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
-      val parity = tweakedKey.publicKey.isOdd
+        val internalPubkey = XOnlyPublicKey(pub)
+        val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
+        val parity = tweakedKey.publicKey.isOdd
 
-      // funding tx sends to our tapscript
-      val fundingTx = Transaction(
+        val controlBlock = ByteVector(
+          (Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte
+        ) ++ internalPubkey.value
+
+        (tweakedKey, controlBlock)
+      }
+
+      val tx1 = Transaction(
         version = 2,
-        txIn = List.empty,
+        txIn = List.empty, // irrelevant for this test
         txOut =
-          List(TxOut(Satoshi(1000000), List(OP_1, OP_PUSHDATA(tweakedKey)))),
+          List(TxOut(Satoshi(1000000), List(OP_1, OP_PUSHDATA(tweakedKey2)))),
         lockTime = 0
       )
 
-      // create an unsigned transaction
-      val tmp = Transaction(
-        version = 2,
-        txIn = List(
+      val updatedTx2 = tx2.copy(txIn =
+        List(
           TxIn(
-            OutPoint(fundingTx, 0),
+            OutPoint(tx1, 0),
             signatureScript = ByteVector.empty,
-            TxIn.SEQUENCE_FINAL,
-            witness = ScriptWitness.empty
-          )
-        ),
-        txOut = List(
-          TxOut(
-            Satoshi(0),
-            Script.write(
+            1,
+            witness = ScriptWitness(
               List(
-                OP_RETURN,
-                OP_PUSHDATA(ByteVector.view("the end".getBytes()))
+                Script.write(script1),
+                controlBlock2
               )
             )
           )
-        ),
-        lockTime = 0
+        )
+      )
+
+      println(s"checking $tx1 => $updatedTx2")
+      Transaction.correctlySpends(
+        updatedTx2,
+        List(tx1),
+        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
       )
     }
   }

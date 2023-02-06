@@ -135,7 +135,7 @@ object OP_PUSHDATA {
     publicKey.value
   )
 
-  def isMinimal(data: ByteVector, code: Int): Boolean = {
+  def isMinimal(data: ByteVector, code: Int): Boolean =
     if (data.length == 0) code == ScriptElt.elt2code(OP_0)
     else if (data.length == 1 && data(0) >= 1 && data(0) <= 16)
       code == ScriptElt.elt2code(OP_1) + (data(0) - 1)
@@ -145,7 +145,6 @@ object OP_PUSHDATA {
     else if (data.length <= 255) code == ScriptElt.elt2code(OP_PUSHDATA1)
     else if (data.length <= 65535) code == ScriptElt.elt2code(OP_PUSHDATA2)
     else true
-  }
 }
 case class OP_PUSHDATA(data: ByteVector, code: Int) extends ScriptElt {
   override def toString = data.toString
