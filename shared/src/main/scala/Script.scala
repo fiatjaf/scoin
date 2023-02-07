@@ -120,6 +120,15 @@ object ScriptFlags {
   // Making unknown public key versions (in BIP 342 scripts) non-standard
   val SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_PUBKEYTYPE: Int = (1 << 20)
 
+  // support OP_CHECKTEMPLATEVERIFY for standard template
+  val SCRIPT_VERIFY_DEFAULT_CHECK_TEMPLATE_VERIFY_HASH: Int = (1 << 21)
+
+  // Validating ANYPREVOUT public keys
+  val SCRIPT_VERIFY_ANYPREVOUT: Int = (1 << 22)
+
+  // Making ANYPREVOUT public key versions (in BIP 342 scripts) non-standar  d
+  val SCRIPT_VERIFY_DISCOURAGE_ANYPREVOUT: Int = (1 << 23)
+
   /** Standard script verification flags that standard transactions will comply
     * with. However scripts violating these flags may still be present in valid
     * blocks and we must accept those blocks.
@@ -689,9 +698,11 @@ object Script {
         case SigVersion.SIGVERSION_TAPSCRIPT =>
           // transform bip118 pubkeys into normal keys
           val actualPubKey =
-            if (pubKey.size == 1 && pubKey(0) == 0x01)
-              internalKey.get.value.bytes
-            else if (pubKey.size == 33 && pubKey(0) == 0x01) pubKey.drop(1)
+            if ((scriptFlag & SCRIPT_VERIFY_ANYPREVOUT) != 0)
+              if (pubKey.size == 1 && pubKey(0) == 0x01)
+                internalKey.get.value.bytes
+              else if (pubKey.size == 33 && pubKey(0) == 0x01) pubKey.drop(1)
+              else pubKey
             else pubKey
 
           checkSignatureSchnorr(

@@ -116,7 +116,7 @@ object AnyprevoutTest extends TestSuite {
       Transaction.correctlySpends(
         updatedTx2,
         List(tx1),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS | ScriptFlags.SCRIPT_VERIFY_ANYPREVOUT
       )
     }
   }
