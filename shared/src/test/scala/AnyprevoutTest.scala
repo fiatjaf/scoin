@@ -31,7 +31,7 @@ object AnyprevoutTest extends TestSuite {
       val (tx2, sig2) = {
         val tx = Transaction(
           version = 2,
-          txIn = List.empty, // empty for now, will be filled later
+          txIn = List(TxIn.placeholder(1)),
           txOut = List(
             TxOut(
               Satoshi(0),
@@ -51,7 +51,7 @@ object AnyprevoutTest extends TestSuite {
           tx,
           0,
           List(tx.txOut(0)),
-          SIGHASH_ANYPREVOUTANYSCRIPT & SIGHASH_SINGLE,
+          SIGHASH_ANYPREVOUTANYSCRIPT | SIGHASH_SINGLE,
           SigVersion.SIGVERSION_TAPSCRIPT,
           annex = None,
           tapleafHash = None // because of anyprevoutanyscript this can be None
@@ -110,7 +110,6 @@ object AnyprevoutTest extends TestSuite {
         )
       )
 
-      println(s"checking $tx1 => $updatedTx2")
       Transaction.correctlySpends(
         updatedTx2,
         List(tx1),

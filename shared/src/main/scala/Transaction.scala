@@ -63,6 +63,10 @@ object TxIn extends BtcSerializer[TxIn] {
       sequence: Long
   ): TxIn = new TxIn(outPoint, Script.write(signatureScript), sequence)
 
+  // this is just a helper for usage with SIGHASH_ANYPREVOUT constructions
+  def placeholder(sequence: Int) =
+    TxIn(OutPoint.placeholder, Seq.empty, sequence)
+
   /* Setting nSequence to this value for every input in a transaction disables nLockTime. */
   val SEQUENCE_FINAL = 0xffffffffL
 
@@ -649,8 +653,10 @@ object Transaction extends BtcSerializer[Transaction] {
     val out = new ByteArrayOutputStream()
     out.write(0)
     require(
-      sighashType <= 0x03 || (0x81 to 0x83).contains(sighashType),
-      "invalid sighash type for hashForSigningSchnorr"
+      List(0x00, 0x01, 0x02, 0x03, 0x81, 0x82, 0x83).contains(sighashType)
+        || (isBIP118 &&
+          List(0x41, 0x42, 0x43, 0xc1, 0xc2, 0xc3).contains(sighashType)),
+      s"invalid sighash $sighashType type for hashForSigningSchnorr"
     )
 
     // Control
@@ -701,6 +707,8 @@ object Transaction extends BtcSerializer[Transaction] {
         writeUInt64(inputs(inputIndex).amount.toLong, out)
         writeScript(inputs(inputIndex).publicKeyScript.toArray, out)
       }
+
+      // nSequence from previous outpoint is still committed regardless of anyprevout
       writeUInt32(tx.txIn(inputIndex).sequence.toInt, out)
     }
 
