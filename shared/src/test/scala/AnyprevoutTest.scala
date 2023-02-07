@@ -63,7 +63,10 @@ object AnyprevoutTest extends TestSuite {
       }
 
       val script1 = List(
-        OP_PUSHDATA(sig2), // covenant here (magic)
+        OP_PUSHDATA(
+          sig2 ++ ByteVector
+            .fromInt((SIGHASH_ANYPREVOUTANYSCRIPT | SIGHASH_SINGLE), 1)
+        ),
         OP_1,
         OP_CHECKSIG
       )

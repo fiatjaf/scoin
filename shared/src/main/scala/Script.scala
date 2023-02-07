@@ -499,7 +499,7 @@ object Script {
     case 64 => SIGHASH_DEFAULT
     case 65 if (sig(64).toInt == SIGHASH_DEFAULT) =>
       throw new IllegalArgumentException("invalid sig hashtype")
-    case 65 => sig(64).toInt
+    case 65 => sig.slice(64, 65).toInt(signed = false)
     case _  => throw new IllegalArgumentException("invalid signature")
   }
 
@@ -644,6 +644,7 @@ object Script {
             context.tapleafHash,
             codeSeparatorPos
           )
+
           val result = Crypto.verifySignatureSchnorr(
             ByteVector64(sigBytes.take(64)),
             hash,
