@@ -303,37 +303,22 @@ trait BtcSerializer[T] {
   /** read a message from a stream
     *
     * @param in
-    *   input stream
+    *   input stream / byte array / bytevector / hex string
+    * @param protocolVersion
+    *   (optional) protocol version
     * @return
     *   a deserialized message
     */
   def read(in: InputStream, protocolVersion: Long): T
-
   def read(in: InputStream): T = read(in, PROTOCOL_VERSION)
-
-  /** read a message from a byte array
-    *
-    * @param in
-    *   serialized message
-    * @return
-    *   a deserialized message
-    */
   def read(in: Array[Byte], protocolVersion: Long): T =
     read(new ByteArrayInputStream(in), protocolVersion)
-
   def read(in: Array[Byte]): T = read(in, PROTOCOL_VERSION)
-
-  /** read a message from a hex string
-    *
-    * @param in
-    *   message binary data in hex format
-    * @return
-    *   a deserialized message of type T
-    */
   def read(in: String, protocolVersion: Long): T =
     read(ByteVector.fromValidHex(in).toArray, protocolVersion)
-
-  def read(in: String): T = read(in, PROTOCOL_VERSION)
+  def read(in: String): T =
+    read(ByteVector.fromValidHex(in).toArray, PROTOCOL_VERSION)
+  def read(in: ByteVector): T = read(in.toArray, PROTOCOL_VERSION)
 
   def validate(t: T): Unit = {}
 }
