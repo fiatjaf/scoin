@@ -37,8 +37,8 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
     scalaVersion := "3.2.0",
     libraryDependencies += ("org.scala-js" %%% "scalajs-java-securerandom" % "1.0.0").cross(CrossVersion.for3Use2_13),
     Compile / npmDependencies ++= Seq(
-      "@noble/secp256k1" -> "1.7.0",
-      "@noble/hashes" -> "1.1.4",
+      "@noble/secp256k1" -> "1.7.1",
+      "@noble/hashes" -> "1.0.0",
       "@stablelib/chacha" -> "1.0.1",
       "@stablelib/chacha20poly1305" -> "1.0.1"
     ),
