@@ -35,6 +35,13 @@ object Musig2 {
     */
   def keySort(pubkeys: List[PublicKey]): List[PublicKey] = pubkeys.sortBy(_.value)
 
+  /**
+    * Aggregate pubkeys according to Musig2 specification of `KeyAgg(..)`
+    * https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki#user-content-Algorithms
+    *
+    * @param pubkeys
+    * @return
+    */
   def keyAgg(pubkeys: List[PublicKey]): KeyGenCtx = {
     // note: max list size is 2^32 - 1
     val pk2 = getSecondKey(pubkeys.map(_.value))
@@ -86,5 +93,33 @@ object Musig2 {
                             radix = 16
                           ).mod(N)
                       }
+  /**
+    * Tweak a `KeyGenCtx` with a tweak value so as to obtain a new
+    * (tweaked) `KeyGenCtx`.
+    *
+    * @param keygenCtx
+    * @param tweak
+    * @param isXonlyTweak
+    * @return
+    */
+  def applyTweak(
+        keygenCtx: KeyGenCtx,  
+        tweak: ByteVector32, 
+        isXonlyTweak: Boolean
+        ): KeyGenCtx = {
+
+          val KeyGenCtx(pointQ,gacc,tacc) = keygenCtx
+          val g = if(isXonlyTweak && pointQ.isOdd) 
+                    BigInt(-1).mod(N)
+                  else BigInt(1)
+          val t = BigInt(tweak.toHex,16)
+          require(t >= 0)
+          require(t < N, "tweak value cannot exceed the group order")
+          val pointQ1 = (pointQ*PrivateKey(g)) + (G*PrivateKey(t))
+          require(pointQ1.isValid, "tweaked combined pub key Q is not valid (infinte?)")
+          val gacc1 = (g*gacc).mod(N)
+          val tacc1 = (t + g*tacc).mod(N)
+          KeyGenCtx(pointQ1,gacc1,tacc1)
+        }
 
 }

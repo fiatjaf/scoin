@@ -5,6 +5,7 @@ import utest._
 import scodec.bits.ByteVector
 import Crypto._
 import scoin.TaprootTest.assertFails
+
 object Musig2Test extends TestSuite {
   // tests and algorithms mostly from
   // https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki
@@ -43,12 +44,6 @@ object Musig2Test extends TestSuite {
         "04F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9",
         "03935F972DA013F80AE011890FA89B67A27B7BE6CCB24D3274D18B2D4067F261A9"
       ).map(i => ByteVector.fromValidHex(i))
-
-      // note: one of these tweaks is out of range
-      val tweaks = List(
-        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
-        "252E4BD67410A76CDF933D30EAA1608214037F1B105A013ECCD3C5C184A6110B"
-      ).map(i => BigInt(i,16))
       
       val pubkeys012 = pubkeys_bytes(0) :: pubkeys_bytes(1) :: pubkeys_bytes(2) :: Nil
       assert(
@@ -78,6 +73,55 @@ object Musig2Test extends TestSuite {
         == 
         "69BC22BFA5D106306E48A20679DE1D7389386124D07571D0D872686028C26A3E"
       )
+
+      // fail when a pubkey is invalid
+      // signer(1) pubkey is invalid
+      val pubkeys03 = pubkeys_bytes(0) :: pubkeys_bytes(3) :: Nil
+      assertFails(
+        Musig2.keyAgg(pubkeys03.map(PublicKey(_)))
+      )
+
+      // fail when a pubkey is invalid
+      // signer(1) public key exceeds field size
+      val pubkeys04 = pubkeys_bytes(0) :: pubkeys_bytes(4) :: Nil
+      assertFails(
+        println(Musig2.keyAgg(pubkeys04.map(PublicKey(_))))
+      )
+
+      // fail - invalid pubkey
+      // signer(1) first byte of key is not 2 or 3
+      val pubkeys50 = pubkeys_bytes(5) :: pubkeys_bytes(0) :: Nil
+      assertFails(
+        println(Musig2.keyAgg(pubkeys50.map(PublicKey(_))))
+      )
+
+      // note: one of these tweaks is out of range
+      val tweaks_bytes = List(
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+        "252E4BD67410A76CDF933D30EAA1608214037F1B105A013ECCD3C5C184A6110B"
+      ).map(i => ByteVector32.fromValidHex(i))
+
+      val pubkeys01 = pubkeys_bytes(0) :: pubkeys_bytes(1) :: Nil
+      val keygenCtx01 = Musig2.keyAgg(pubkeys01.map(PublicKey(_)))
+      assertFails(
+        Musig2.applyTweak(
+          keygenCtx = keygenCtx01,
+          tweak = tweaks_bytes(0),
+          isXonlyTweak = true
+        )
+      )
+
+      val pubkeys6 = pubkeys_bytes(6) :: Nil
+      val keygenCtx6 = Musig2.keyAgg(pubkeys6.map(PublicKey(_)))
+      assertFails(
+        Musig2.applyTweak(
+          keygenCtx = keygenCtx6,
+          tweak = tweaks_bytes(1),
+          isXonlyTweak = false
+        )
+      )
+
+      
     }
   }
 }
