@@ -122,4 +122,26 @@ object Musig2 {
           KeyGenCtx(pointQ1,gacc1,tacc1)
         }
 
+  /**
+    * Generate Musig2 nonces. Note, this method requires access to a secure
+    * randome number generator. The current implementation is impure. It should
+    * probably be rewritten to pass the number generator in as a parameter.
+    *
+    * @param secretSigningKey
+    * @param pubKey
+    * @param aggregateXOnlyPublicKey
+    * @param message
+    * @param extraIn
+    * @param nextRand32 the next 32-bytes from cryptographically secure randomness
+    * @return (secNonce, pubNonce)
+    */
+  def nonceGen(
+        secretSigningKey: Option[ByteVector32],
+        pubKey: PublicKey,
+        aggregateXOnlyPublicKey: Option[XOnlyPublicKey],
+        message: Option[ByteVector],
+        extraIn: Option[ByteVector],
+        nextRand32: => ByteVector32 = randomBytes32()
+  ): (ByteVector, ByteVector) = ???
+
 }
