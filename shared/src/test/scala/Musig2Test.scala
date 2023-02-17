@@ -214,6 +214,17 @@ object Musig2Test extends TestSuite {
       // "comment": "Sum of second points encoded in the nonces is point at infinity which is serialized as 33 zero bytes"
       assert(Musig2.nonceAgg(pnonces23) == ByteVector.fromValidHex("035FE1873B4F2967F52FEA4A06AD5A8ECCBE9D0FD73068012C894E2E87CCB5804B000000000000000000000000000000000000000000000000000000000000000000"))
     
+      val pnonces04 = pnonces(0) :: pnonces(4) :: Nil
+      //  "comment": "Public nonce from signer 1 is invalid due wrong tag, 0x04, in the first half"
+      assertFails(Musig2.nonceAgg(pnonces04))
+
+      val pnonces51 = pnonces(5) :: pnonces(1) :: Nil
+      //  "comment":  "Public nonce from signer 0 is invalid because the second half does not correspond to an X coordinate"
+      assertFails(Musig2.nonceAgg(pnonces51))
+
+      val pnonces61 = pnonces(6) :: pnonces(1) :: Nil
+      //  "comment":  "Public nonce from signer 0 is invalid because second half exceeds field size"
+      assertFails(Musig2.nonceAgg(pnonces61))
     }
   }
 }

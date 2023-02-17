@@ -176,7 +176,7 @@ object Musig2 {
     * The function cpoint(x), where x is a 33-byte array (compressed serialization), sets P = lift_x(int(x[1:33])) and fails if that fails. If x[0] = 2 it returns P and if x[0] = 3 it returns -P. Otherwise, it fails.
     * */
   private[scoin] def cpoint( x: ByteVector ): PublicKey = 
-    PublicKey(raw = x, checkValid = false)
+    PublicKey(raw = x, checkValid = true)
   
   /**
     * The function cpoint_ext(x), where x is a 33-byte array (compressed serialization), 
@@ -186,9 +186,37 @@ object Musig2 {
     */
   private[scoin] def cpoint_ext( x: ByteVector ): Option[PublicKey] =
     if( x == ByteVector.fill(33)(0) ) // all zeres is representing point at infinity
-      None // using "Nonce" to represent the point at infinity
+      None // using "None" to represent the point at infinity
     else
       Some(cpoint(x))
+
+  private[scoin] def cbytes_ext(pk: Option[PublicKey]): ByteVector = pk match {
+    case None => ByteVector.fill(33)(0.toByte) // serialized point at infinity
+    case Some(pubkey) => pubkey.value
+  }
+
+  private[scoin] val infinity: Option[PublicKey] = None
+
+  /**
+    * Insecure hack!! Here we assume that if point addition "fails" in the sense
+    * that the underlying library implementing point addition throws an exception,
+    * then the point returned is to be the point at infinity which is represented
+    * as `None`.
+    *
+    * @param lhs
+    * @param rhs
+    * @return
+    */
+  private[scoin] def point_add_ext( 
+    lhs: Option[PublicKey], 
+    rhs: Option[PublicKey] ): Option[PublicKey] = 
+      lhs.flatMap(x => rhs.map(y => (x,y))) match {
+        case None => None
+        case Some((x,y)) => Try(x + y) match {
+          case Failure(exception) => None // this is the hacky/insecure part
+          case Success(pk) => Some(pk)
+        }
+      }
 
   /**
     * Take list of public nonces and combine them to create an aggregate public
@@ -217,8 +245,8 @@ object Musig2 {
         case Failure(e) => throw new IllegalArgumentException(s"invalid pubnonce from signer/index $i, $e")
         case Success(v) => v
       }
-    } yield (j,pointR_ij)
-    noncepoints.filter(_._1 == 1).map(_._2).reduce(_ + _).value  // R_j (j = 1)
-    ++ noncepoints.filter(_._1 == 2).map(_._2).reduce(_ + _).value // R_j (j = 2)
+    } yield (j,Option(pointR_ij))
+    cbytes_ext(noncepoints.filter(_._1 == 1).map(_._2).reduce{case (x,y) => point_add_ext(x,y)})  // R_j (j = 1)
+    ++ cbytes_ext(noncepoints.filter(_._1 == 2).map(_._2).reduce{case (x,y) => point_add_ext(x,y)})// R_j (j = 2)
   }
 }
