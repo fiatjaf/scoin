@@ -142,6 +142,33 @@ object Musig2 {
         message: Option[ByteVector],
         extraIn: Option[ByteVector],
         nextRand32: => ByteVector32 = randomBytes32()
-  ): (ByteVector, ByteVector) = ???
+  ): (ByteVector, ByteVector) = {
+    val rand: ByteVector32 = secretSigningKey match {
+      case None => nextRand32
+      case Some(sk) => ByteVector32(sk.xor(taggedHash(nextRand32.bytes,"MuSig/aux").bytes))
+    }
+    val aggpk = aggregateXOnlyPublicKey.map(_.value.bytes).getOrElse(ByteVector.empty)
+    val m_prefixed = message match {
+      case None => ByteVector(0.toByte)
+      case Some(m) => ByteVector(1.toByte) ++ ByteVector(m.length).padLeft(8) ++ m
+    }
+    val extra_in = extraIn.getOrElse(ByteVector.empty)
+    
+    def k_i(i: Int):ByteVector32 = taggedHash(
+      rand.bytes ++ ByteVector(pubKey.value.length.toByte) ++ pubKey.value ++
+      ByteVector(aggpk.length.toByte) ++ aggpk ++
+      m_prefixed ++ ByteVector(extra_in.length).padLeft(4) ++ extra_in ++
+      ByteVector((i - 1).toByte),
+      "MuSig/nonce"
+    )
+    val k1 = BigInt(k_i(1).toHex,16).mod(N)
+    val k2 = BigInt(k_i(2).toHex,16).mod(N)
+    require(k1 != 0, "k1 cannot be zero")
+    require(k2 != 0, "k2 cannot be zero")
+    val (pointR1,pointR2) = (G*PrivateKey(k1), G*PrivateKey(k2))
+    val pubNonce = pointR1.value ++ pointR2.value
+    val secNonce = PrivateKey(k1).value ++ PrivateKey(k2).value ++ pubKey.value
+    (secNonce, pubNonce)
+  }
 
 }
