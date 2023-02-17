@@ -2,6 +2,7 @@ package scoin
 
 import Crypto._
 import scodec.bits.ByteVector
+import scala.util.{Try, Success, Failure}
 
 object Musig2 {
 
@@ -171,4 +172,53 @@ object Musig2 {
     (secNonce, pubNonce)
   }
 
+  /**
+    * The function cpoint(x), where x is a 33-byte array (compressed serialization), sets P = lift_x(int(x[1:33])) and fails if that fails. If x[0] = 2 it returns P and if x[0] = 3 it returns -P. Otherwise, it fails.
+    * */
+  private[scoin] def cpoint( x: ByteVector ): PublicKey = 
+    PublicKey(raw = x, checkValid = false)
+  
+  /**
+    * The function cpoint_ext(x), where x is a 33-byte array (compressed serialization), 
+    * returns the point at infinity if x = bytes(33, 0). Otherwise, it returns 
+    * cpoint(x) and fails if that fails.
+    *
+    */
+  private[scoin] def cpoint_ext( x: ByteVector ): Option[PublicKey] =
+    if( x == ByteVector.fill(33)(0) ) // all zeres is representing point at infinity
+      None // using "Nonce" to represent the point at infinity
+    else
+      Some(cpoint(x))
+
+  /**
+    * Take list of public nonces and combine them to create an aggregate public
+    * nonce. If this method fails, blame can be assigned to the signer with 
+    * the index which caused the failer. 
+    *
+    * @param publicNonces
+    * @return aggregate public nonce
+    */
+  def nonceAgg( publicNonces: List[ByteVector] ): ByteVector = {
+    /**
+      * Algorithm NonceAgg(pubnonce1..u):
+        Inputs:
+          The number u of pubnonces with 0 < u < 2^32
+          The public nonces pubnonce1..u: u 66-byte arrays
+        For j = 1 .. 2:
+          For i = 1 .. u:
+            Let Ri,j = cpoint(pubnoncei[(j-1)*33:j*33]); fail if that fails and blame signer i for invalid pubnonce.
+          Let Rj = R1,j + R2,j + ... + Ru,j
+        Return aggnonce = cbytes_ext(R1) || cbytes_ext(R2)
+      */
+    val noncepoints = for {
+      j <- (1 to 2)
+      i <- (0 until publicNonces.size)
+      pointR_ij = Try(cpoint(publicNonces(i).drop((j-1)*33).take(j*33))) match {
+        case Failure(e) => throw new IllegalArgumentException(s"invalid pubnonce from signer/index $i, $e")
+        case Success(v) => v
+      }
+    } yield (j,pointR_ij)
+    noncepoints.filter(_._1 == 1).map(_._2).reduce(_ + _).value  // R_j (j = 1)
+    ++ noncepoints.filter(_._1 == 2).map(_._2).reduce(_ + _).value // R_j (j = 2)
+  }
 }
