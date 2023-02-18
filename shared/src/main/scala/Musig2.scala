@@ -249,4 +249,95 @@ object Musig2 {
     cbytes_ext(noncepoints.filter(_._1 == 1).map(_._2).reduce{case (x,y) => point_add_ext(x,y)})  // R_j (j = 1)
     ++ cbytes_ext(noncepoints.filter(_._1 == 2).map(_._2).reduce{case (x,y) => point_add_ext(x,y)})// R_j (j = 2)
   }
+
+  /**
+    * The Session Context is a data structure consisting of the following elements:
+    *
+    * @param aggNonce The aggregate public nonce aggnonce: a 66-byte array
+    * @param numPubKeys The number u of public keys with 0 < u < 2^32
+    * @param pubKeys The plain public keys pk1..u: u 33-byte arrays
+    * @param numTweaks The number v of tweaks with 0 ≤ v < 2^32
+    * @param tweaks The tweaks tweak1..v: v 32-byte arrays
+    * @param isXonlyTweak The tweak modes is_xonly_t1..v : v booleans
+    * @param message The message m: a byte array
+    */
+  final case class SessionCtx(
+    aggNonce: ByteVector,
+    numPubKeys: Int,
+    pubKeys: List[ByteVector],
+    numTweaks: Int,
+    tweaks: List[ByteVector32],
+    isXonlyTweak: List[Boolean],
+    message: ByteVector
+  )
+
+  // names taken from spec...unfortunately quite confusing
+  final case class SessionValues(
+    pointQ: PublicKey,
+    gacc: BigInt,
+    tacc: BigInt,
+    b: BigInt,
+    pointR: PublicKey,
+    e: BigInt
+  )
+
+  /**
+    * return integer mod n representation of bytes
+    * where n is the group order
+    *
+    * @param bytes
+    * @return
+    */
+  private[scoin] def intModN(bytes: ByteVector): BigInt = BigInt(bytes.toHex,16).mod(N)
+  private[scoin] def intModN(bytes: ByteVector32): BigInt = BigInt(bytes.toHex,16).mod(N)
+
+  private[scoin] def int(bytes: ByteVector): BigInt = BigInt(bytes.toHex,16)
+  private[scoin] def int(bytes: ByteVector32): BigInt = BigInt(bytes.toHex,16)
+
+  def getSessionValues( ctx: SessionCtx ): SessionValues = {
+    // the following will throw if any pubkeys are invalid
+    def keygen_ctx_i(i: Int): KeyGenCtx = i match {
+      case 0 => keyAgg(ctx.pubKeys.map(PublicKey(_)))
+      case i => applyTweak(keygen_ctx_i(i - 1), ctx.tweaks(i), ctx.isXonlyTweak(i))
+    }
+    val KeyGenCtx(pointQ, gacc, tacc) = keygen_ctx_i(ctx.numTweaks)
+    val b = intModN(
+              taggedHash(
+                ctx.aggNonce ++ pointQ.xonly.value.bytes ++ ctx.message,
+                "MuSig/noncecoef"
+              )
+            )
+    val (pointR1,pointR2) = (
+                              cpoint_ext(ctx.aggNonce.slice(0,33)),
+                              cpoint_ext(ctx.aggNonce.slice(33,66))
+                            )
+    // if above fails, we should throw error and blame nonce aggregator for invalid aggNonce
+
+    val pointRfinal = point_add_ext(pointR1,pointR2.map(_ * PrivateKey(b))) match {
+      case None => G // if inifite, use point G instead
+      case Some(pt) => pt
+    }
+    require(pointRfinal.isValid,"final nonce invalid (point at infinity maybe?)")
+    val e = intModN(
+              Crypto.calculateBip340challenge(
+                data = ByteVector32(ctx.message),
+                noncePointR = pointRfinal.xonly,
+                publicKey = pointQ.xonly
+              )
+            )
+    SessionValues(pointQ,gacc,tacc,b,pointRfinal,e)
+  }
+
+  def getSessionKeyAggCoeff(ctx: SessionCtx, pubkey: PublicKey): BigInt = {
+    require(ctx.pubKeys.contains(pubkey.value), "pubkey not part of this session context")
+    keyAggCoeff(ctx.pubKeys,pubkey.value)
+  }
+
+  def partialSigAgg(psigs: List[ByteVector], ctx: SessionCtx): ByteVector64 = {
+    val SessionValues(pointQ,_,tacc,_,pointR,e) = getSessionValues(ctx)
+    val s = psigs.map(int(_))
+    s.zipWithIndex.foreach{case(s_i,i) => require(s_i < N, s"signer $i submitted invalid signature")}
+    val g = if(pointQ.isEven) BigInt(1) else BigInt(-1).mod(N)
+    ByteVector64(pointR.xonly.value ++ PrivateKey((s.reduce(_ + _).mod(N) + (e*g*tacc).mod(N))).value)   
+  }
 }
