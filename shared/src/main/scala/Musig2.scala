@@ -298,7 +298,7 @@ object Musig2 {
     // the following will throw if any pubkeys are invalid
     def keygen_ctx_i(i: Int): KeyGenCtx = i match {
       case 0 => keyAgg(ctx.pubKeys.map(PublicKey(_)))
-      case i => applyTweak(keygen_ctx_i(i - 1), ctx.tweaks(i), ctx.isXonlyTweak(i))
+      case i => applyTweak(keygen_ctx_i(i - 1), ctx.tweaks(i-1), ctx.isXonlyTweak(i-1))
     }
     val KeyGenCtx(pointQ, gacc, tacc) = keygen_ctx_i(ctx.numTweaks)
     val b = intModN(

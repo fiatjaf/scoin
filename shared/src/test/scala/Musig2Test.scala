@@ -227,7 +227,7 @@ object Musig2Test extends TestSuite {
       assertFails(Musig2.nonceAgg(pnonces61))
     }
 
-    test("musig2 - signature aggregatation") {
+    test("musig2 - partial signature aggregatation") {
       val pubkeys = List(
         "03935F972DA013F80AE011890FA89B67A27B7BE6CCB24D3274D18B2D4067F261A9",
         "02D2DC6F5DF7C56ACF38C7FA0AE7A759AE30E19B37359DFDE015872324C7EF6E05",
@@ -296,23 +296,52 @@ object Musig2Test extends TestSuite {
         )
         assert(Musig2.partialSigAgg(sigs,ctx) == ByteVector64.fromValidHex("1069B67EC3D2F3C7C08291ACCB17A9C9B8F2819A52EB5DF8726E17E7D6B52E9F01800260A7E9DAC450F4BE522DE4CE12BA91AEAF2B4279219EF74BE1D286ADD9"))
       }
-      /*{ // test 3 (now including some tweaks)
+      { // test 3 (now including some tweaks)
         val aggnonce = ByteVector.fromValidHex("0208C5C438C710F4F96A61E9FF3C37758814B8C3AE12BFEA0ED2C87FF6954FF186020B1816EA104B4FCA2D304D733E0E19CEAD51303FF6420BFD222335CAA402916D")
         val nonces = pnonces(0) :: pnonces(3) :: Nil
         val keys = pubkeys(0) :: pubkeys(2) :: Nil
-        val sigs = psigs(2) :: psigs(3) :: Nil
+        val sigs = psigs(4) :: psigs(5) :: Nil
         val tw = (tweaks(0) :: Nil).map(ByteVector32(_))
         val ctx = Musig2.SessionCtx(
           aggNonce = aggnonce,
-          numPubKeys = 2,
+          numPubKeys = keys.size,
           pubKeys = keys,
           numTweaks = tw.size,
           tweaks = tw,
-          isXonlyTweak = List(),
+          isXonlyTweak = List(false),
           message = msg
         )
-        assert(Musig2.partialSigAgg(sigs,ctx) == ByteVector64.fromValidHex("1069B67EC3D2F3C7C08291ACCB17A9C9B8F2819A52EB5DF8726E17E7D6B52E9F01800260A7E9DAC450F4BE522DE4CE12BA91AEAF2B4279219EF74BE1D286ADD9"))
-      }*/
+        assert(Musig2.partialSigAgg(sigs,ctx) == ByteVector64.fromValidHex("5C558E1DCADE86DA0B2F02626A512E30A22CF5255CAEA7EE32C38E9A71A0E9148BA6C0E6EC7683B64220F0298696F1B878CD47B107B81F7188812D593971E0CC"))
+      }
+      { // test 4 (now including some tweaks)
+        val nonces = pnonces(0) :: pnonces(4) :: Nil
+        val sigs = psigs(6) :: psigs(7) :: Nil
+        val ctx = Musig2.SessionCtx(
+          aggNonce = ByteVector.fromValidHex("02B5AD07AFCD99B6D92CB433FBD2A28FDEB98EAE2EB09B6014EF0F8197CD58403302E8616910F9293CF692C49F351DB86B25E352901F0E237BAFDA11F1C1CEF29FFD"),
+          numPubKeys = 2,
+          pubKeys = pubkeys(0) :: pubkeys(3) :: Nil,
+          numTweaks = 3,
+          tweaks = (tweaks(0) :: tweaks(1) :: tweaks(2) :: Nil).map(ByteVector32(_)),
+          isXonlyTweak = List(true,false,true),
+          message = msg
+        )
+        assert(Musig2.partialSigAgg(sigs,ctx) == ByteVector64.fromValidHex("839B08820B681DBA8DAF4CC7B104E8F2638F9388F8D7A555DC17B6E6971D7426CE07BF6AB01F1DB50E4E33719295F4094572B79868E440FB3DEFD3FAC1DB589E"))
+      }
+      { // test 5 -- error case
+        val nonces = pnonces(0) :: pnonces(4) :: Nil
+        val sigs = psigs(7) :: psigs(8) :: Nil
+        val ctx = Musig2.SessionCtx(
+          aggNonce = ByteVector.fromValidHex("02B5AD07AFCD99B6D92CB433FBD2A28FDEB98EAE2EB09B6014EF0F8197CD58403302E8616910F9293CF692C49F351DB86B25E352901F0E237BAFDA11F1C1CEF29FFD"),
+          numPubKeys = 2,
+          pubKeys = pubkeys(0) :: pubkeys(3) :: Nil,
+          numTweaks = 3,
+          tweaks = (tweaks(0) :: tweaks(1) :: tweaks(2) :: Nil).map(ByteVector32(_)),
+          isXonlyTweak = List(true,false,true),
+          message = msg
+        )
+        //  "comment": "Partial signature is invalid (signer index 1) because it exceeds group size"
+        assertFails(Musig2.partialSigAgg(sigs,ctx))
+      }
 
     }
   }
