@@ -648,6 +648,22 @@ object Crypto extends CryptoPlatform {
       noncePointR: XOnlyPublicKey,
       publicKey: XOnlyPublicKey
   ): ByteVector32 = PrivateKey(taggedHash(noncePointR.value ++ publicKey.value ++ data,"BIP0340/challenge")).value
+  /**
+    * Convenience method which calculates the parts of the signature 
+    * that are public knowledge (can be reconstructed) by anybody.
+    * Basically a tagged hash turned into a private key
+    * see: BIP340/challenge
+    * 
+    * @param data
+    * @param noncePointR
+    * @param publicKey
+    * @return
+    */
+  def calculateBip340challenge(
+      data: ByteVector,
+      noncePointR: XOnlyPublicKey,
+      publicKey: XOnlyPublicKey
+  ): ByteVector32 = PrivateKey(taggedHash(noncePointR.value ++ publicKey.value ++ data,"BIP0340/challenge")).value
 
   /** (Unsafe) Sign according to BIP340 specification
     * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki

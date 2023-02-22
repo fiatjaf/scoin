@@ -3,6 +3,7 @@ package scoin
 import Crypto._
 import scodec.bits.ByteVector
 import scala.util.{Try, Success, Failure}
+import scoin.reckless.Curve.secp256k1
 
 object Musig2 {
 
@@ -320,7 +321,7 @@ object Musig2 {
     require(pointRfinal.isValid,"final nonce invalid (point at infinity maybe?)")
     val e = intModN(
               Crypto.calculateBip340challenge(
-                data = ByteVector32(ctx.message),
+                data = ctx.message,
                 noncePointR = pointRfinal.xonly,
                 publicKey = pointQ.xonly
               )
@@ -339,5 +340,81 @@ object Musig2 {
     s.zipWithIndex.foreach{case(s_i,i) => require(s_i < N, s"signer $i submitted invalid signature")}
     val g = if(pointQ.isEven) BigInt(1) else BigInt(-1).mod(N)
     ByteVector64(pointR.xonly.value ++ PrivateKey((s.reduce(_ + _).mod(N) + (e*g*tacc).mod(N))).value)   
+  }
+
+
+  def pointNegate(point: PublicKey): PublicKey = {
+      import reckless._
+      val p = secp256k1.CurvePoint.fromUnCompressed(point.toUncompressedBin)
+      PublicKey(Curve.pointNegate(secp256k1)(p).compressed)
+  }
+
+  private[scoin] def partialSigVerifyInternal(psig: ByteVector, pubnonce: ByteVector, pubkey: PublicKey, ctx: SessionCtx): Boolean = {
+    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx)
+    val s = int(psig)
+    require(s < N, "partial signature exceeds group order")
+    val (pointR1, pointR2) = (cpoint(pubnonce.slice(0,33)),cpoint(pubnonce.slice(33,66)))
+    val pointReffective = if(pointR.isEven)
+                            pointR1 + (pointR2*PrivateKey(b))
+                          else
+                            pointNegate((pointR1 + (pointR2*PrivateKey(b))))
+    val pointP = pubkey
+    val a = getSessionKeyAggCoeff(ctx,pointP)
+    val g = if(pointQ.isEven) BigInt(1) else BigInt(-1).mod(N)
+    val gPrime = (g*gacc).mod(N)
+    require((G*PrivateKey(s)) == (pointReffective + pointP*PrivateKey((e*a*gPrime).mod(N))),"invalid partial signature")
+    true
+  }
+
+  def partialSigVerify(
+        psig: ByteVector, 
+        pubnonces: List[ByteVector], 
+        pubkeys: List[ByteVector], 
+        tweaks: List[ByteVector32], 
+        isXonlyTweak: List[Boolean],
+        message: ByteVector,
+        index: Int
+    ): Boolean = {
+      val aggnonce = nonceAgg(pubnonces)
+      require(aggnonce.nonEmpty, "invalid aggregate nonce")
+      val ctx = SessionCtx(
+          aggNonce = aggnonce,
+          numPubKeys = pubkeys.size,
+          pubKeys = pubkeys,
+          numTweaks = tweaks.size,
+          tweaks = tweaks,
+          isXonlyTweak = isXonlyTweak,
+          message = message 
+      )
+      partialSigVerifyInternal(psig,pubnonces(index),PublicKey(pubkeys(index)),ctx)
+  }
+
+  /**
+    * Sign according to Musig2 specification.
+    * @see https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki 
+    *
+    * @param secnonce 
+    *   The secret nonce secnonce that has never been used as input to Sign before: a 97-byte array
+    * @param privateKey the secret signing key
+    * @param ctx the SessionCtx
+    * @return a partial signature which can be aggregated according to Musig2
+    */
+  def sign(secnonce: ByteVector, privateKey: PrivateKey, ctx: SessionCtx): ByteVector32 = {
+    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx)
+    val (k1p, k2p) = (int(secnonce.slice(0,32)),int(secnonce.slice(32,64)))
+    require( k1p != 0 && k2p != 0, "secnonce k1, k2 cannot be zero")
+    require( k1p < N && k2p < N, "secnonces k1,k2 cannot exceed group order")
+    val n = math.BigInt.javaBigInteger2bigInt(N)
+    val (k1, k2) = if(pointR.isEven) (k1p,k2p) else (n - k1p, n - k2p)
+    val pointP = privateKey.publicKey
+    require(pointP.value == secnonce.slice(64,97),"secnonce does not match signing public key")
+    val a = getSessionKeyAggCoeff(ctx,pointP)
+    val g = if(pointQ.isEven) BigInt(1) else BigInt(-1).mod(n)
+    val d = (g*gacc*BigInt(privateKey.value.toHex,16)).mod(n) // see: negation of secret key when signing
+    val s = (k1 + b*k2 + e*a*d).mod(n)
+    val psig = PrivateKey(s).value
+    val pubnonce = (G*PrivateKey(k1p)).value ++ (G*PrivateKey(k2p)).value
+    require(partialSigVerifyInternal(psig,pubnonce,pointP,ctx),"invalid partial signature, your parameters")
+    psig
   }
 }

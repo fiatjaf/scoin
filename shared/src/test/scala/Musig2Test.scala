@@ -342,7 +342,114 @@ object Musig2Test extends TestSuite {
         //  "comment": "Partial signature is invalid (signer index 1) because it exceeds group size"
         assertFails(Musig2.partialSigAgg(sigs,ctx))
       }
+    }
 
+    test("musig2 - partial signature verification") {
+      val sk = PrivateKey(ByteVector32.fromValidHex("7FB9E0E687ADA1EEBF7ECFE2F21E73EBDB51A7D450948DFE8D76D7F2D1007671"))
+      val pubkeys = List(
+        "03935F972DA013F80AE011890FA89B67A27B7BE6CCB24D3274D18B2D4067F261A9",
+        "02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9",
+        "02DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA661",
+        "020000000000000000000000000000000000000000000000000000000000000007"
+      ).map(ByteVector.fromValidHex(_))
+      val secnonces = List(
+        "508B81A611F100A6B2B6B29656590898AF488BCF2E1F55CF22E5CFB84421FE61FA27FD49B1D50085B481285E1CA205D55C82CC1B31FF5CD54A489829355901F703935F972DA013F80AE011890FA89B67A27B7BE6CCB24D3274D18B2D4067F261A9",
+        "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003935F972DA013F80AE011890FA89B67A27B7BE6CCB24D3274D18B2D4067F261A9"
+      ).map(ByteVector.fromValidHex(_))
+      val pnonces = List(
+        "0337C87821AFD50A8644D820A8F3E02E499C931865C2360FB43D0A0D20DAFE07EA0287BF891D2A6DEAEBADC909352AA9405D1428C15F4B75F04DAE642A95C2548480",
+        "0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F817980279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+        "032DE2662628C90B03F5E720284EB52FF7D71F4284F627B68A853D78C78E1FFE9303E4C5524E83FFE1493B9077CF1CA6BEB2090C93D930321071AD40B2F44E599046",
+        "0237C87821AFD50A8644D820A8F3E02E499C931865C2360FB43D0A0D20DAFE07EA0387BF891D2A6DEAEBADC909352AA9405D1428C15F4B75F04DAE642A95C2548480",
+        "020000000000000000000000000000000000000000000000000000000000000009"
+      ).map(ByteVector.fromValidHex(_))
+      val aggnonces = List(
+        "028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61037496A3CC86926D452CAFCFD55D25972CA1675D549310DE296BFF42F72EEEA8C9",
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "048465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61037496A3CC86926D452CAFCFD55D25972CA1675D549310DE296BFF42F72EEEA8C9",
+        "028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61020000000000000000000000000000000000000000000000000000000000000009",
+        "028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD6102FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30"
+      ).map(ByteVector.fromValidHex(_))
+      val msgs = List(
+        "F95466D086770E689964664219266FE5ED215C92AE20BAB5C9D79ADDDDF3C0CF",
+        "",
+        "2626262626262626262626262626262626262626262626262626262626262626262626262626"
+      ).map(ByteVector.fromValidHex(_))
+
+      def innerTestAssertValid(key_indices: List[Int], nonce_indices: List[Int], aggnonce_index: Int, msg_index: Int, signer_index: Int, expected: String, comment:String = ""): Unit = {
+        val pubkeys_ = key_indices.map(i => pubkeys(i))
+        val pubnonces_ = nonce_indices.map(i => pnonces(i))
+        val aggnonce_ = aggnonces(aggnonce_index)
+        assert(Musig2.nonceAgg(pubnonces_) == aggnonce_)
+        val msg_ = msgs(msg_index)
+        val ctx = Musig2.SessionCtx(aggnonce_, pubkeys_.size, pubkeys_, 0,List.empty, List.empty,message = msg_)
+        /**
+          * # WARNING: An actual implementation should _not_ copy the secnonce.
+          * Reusing the secnonce, as we do here for testing purposes, can leak the
+          * secret key.
+          */
+        val secnonce_tmp = secnonces(0) // index 0 for valid tests
+        val psig = Musig2.sign(secnonce_tmp,sk,ctx)
+        assert(psig == ByteVector32.fromValidHex(expected))
+        assert(Musig2.partialSigVerify(psig.bytes,pubnonces_,pubkeys_,List.empty,List.empty,msg_,signer_index))
+      }
+
+      innerTestAssertValid(
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        aggnonce_index = 0,
+        msg_index = 0,
+        signer_index = 0,
+        expected = "012ABBCB52B3016AC03AD82395A1A415C48B93DEF78718E62A7A90052FE224FB",
+        comment = ""
+      )
+
+      innerTestAssertValid(
+        key_indices = List(1,0,2),
+        nonce_indices = List(1,0,2),
+        aggnonce_index = 0,
+        msg_index = 0,
+        signer_index = 1,
+        expected = "9FF2F7AAA856150CC8819254218D3ADEEB0535269051897724F9DB3789513A52",
+        comment = ""
+      )
+
+      innerTestAssertValid(
+        key_indices = List(1,2,0),
+        nonce_indices = List(1,2,0),
+        aggnonce_index = 0,
+        msg_index = 0,
+        signer_index = 2,
+        expected = "FA23C359F6FAC4E7796BB93BC9F0532A95468C539BA20FF86D7C76ED92227900",
+        comment = ""
+      )
+      innerTestAssertValid(
+        key_indices = List(0,1),
+        nonce_indices = List(0,3),
+        aggnonce_index = 1,
+        msg_index = 0,
+        signer_index = 0,
+        expected = "AE386064B26105404798F75DE2EB9AF5EDA5387B064B83D049CB7C5E08879531",
+        comment = "Both halves of aggregate nonce correspond to point at infinity"
+      )
+      innerTestAssertValid(
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        aggnonce_index = 0,
+        msg_index = 1,
+        signer_index = 0,
+        expected = "D7D63FFD644CCDA4E62BC2BC0B1D02DD32A1DC3030E155195810231D1037D82D",
+        comment = "Empty message"
+      )
+      innerTestAssertValid(
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        aggnonce_index = 0,
+        msg_index = 2,
+        signer_index = 0,
+        expected = "E184351828DA5094A97C79CABDAAA0BFB87608C32E8829A4DF5340A6F243B78C",
+        comment = "38-byte message"
+      )       
     }
   }
 }
