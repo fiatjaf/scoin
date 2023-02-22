@@ -404,7 +404,7 @@ object Musig2 {
     val (k1p, k2p) = (int(secnonce.slice(0,32)),int(secnonce.slice(32,64)))
     require( k1p != 0 && k2p != 0, "secnonce k1, k2 cannot be zero")
     require( k1p < N && k2p < N, "secnonces k1,k2 cannot exceed group order")
-    val n = math.BigInt.javaBigInteger2bigInt(N)
+    val n = BigInt(N)
     val (k1, k2) = if(pointR.isEven) (k1p,k2p) else (n - k1p, n - k2p)
     val pointP = privateKey.publicKey
     require(pointP.value == secnonce.slice(64,97),"secnonce does not match signing public key")

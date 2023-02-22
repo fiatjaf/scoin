@@ -449,7 +449,14 @@ object Musig2Test extends TestSuite {
         signer_index = 0,
         expected = "E184351828DA5094A97C79CABDAAA0BFB87608C32E8829A4DF5340A6F243B78C",
         comment = "38-byte message"
-      )       
+      )
+
+      /**
+        * some test cases still need to be coded in (showing that invalid
+        * signatures are not accidentally returned as valid, etc). Specifically
+        * the "sign_verify_error" cases and "sign_verify_fail" cases from
+        * https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2/vectors/sign_verify_vectors.json
+        */       
     }
   }
 }
