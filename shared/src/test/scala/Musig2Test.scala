@@ -456,7 +456,131 @@ object Musig2Test extends TestSuite {
         * signatures are not accidentally returned as valid, etc). Specifically
         * the "sign_verify_error" cases and "sign_verify_fail" cases from
         * https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2/vectors/sign_verify_vectors.json
-        */       
+        */
+
+      def innerTestAssertSignFail(key_indices: List[Int], aggnonce_index: Int, msg_index: Int, secnonce_index: Int, error_message: String, comment:String = ""): Unit = {
+        val pubkeys_ = key_indices.map(i => pubkeys(i))
+        val aggnonce_ = aggnonces(aggnonce_index)
+        val msg_ = msgs(msg_index)
+        val ctx = Musig2.SessionCtx(aggnonce_, pubkeys_.size, pubkeys_, 0,List.empty, List.empty,message = msg_)
+        /**
+          * # WARNING: An actual implementation should _not_ copy the secnonce.
+          * Reusing the secnonce, as we do here for testing purposes, can leak the
+          * secret key.
+          */
+        val secnonce_tmp = secnonces(secnonce_index)
+        //val psig = Musig2.sign(secnonce_tmp,sk,ctx)
+        assertFails(Musig2.sign(secnonce_tmp,sk,ctx)) // index 0 for valid tests
+      }
+
+      innerTestAssertSignFail(
+        key_indices = List(1,2),
+        aggnonce_index = 0,
+        msg_index = 0,
+        secnonce_index = 0,
+        error_message = "The signer's pubkey must be included in the list of pubkeys.",
+        comment = "The signer's pubkey must be included in the list of pubkeys."
+      )
+      innerTestAssertSignFail(
+        key_indices = List(1,0,3),
+        aggnonce_index = 0,
+        msg_index = 0,
+        secnonce_index = 0,
+        error_message = "invalid_contribution (signer 2)",
+        comment = "Signer 2 provided an invalid public key"
+      )
+      innerTestAssertSignFail(
+        key_indices = List(1,2,0),
+        aggnonce_index = 2,
+        msg_index = 0,
+        secnonce_index = 0,
+        error_message = "invalid_contribution (aggnonce)",
+        comment = "Aggregate nonce is invalid due to wrong tag, 0x04, in first half"
+      )
+      innerTestAssertSignFail(
+        key_indices = List(1,2,0),
+        aggnonce_index = 3,
+        msg_index = 0,
+        secnonce_index = 0,
+        error_message = "invalid_contribution (aggnonce)",
+        comment = "Aggregate nonce is invalid because the second half does not correspond to an X coordinate"
+      )
+      innerTestAssertSignFail(
+        key_indices = List(1,2,0),
+        aggnonce_index = 4,
+        msg_index = 0,
+        secnonce_index = 0,
+        error_message = "invalid_contribution (aggnonce)",
+        comment = "Aggregate nonce is invalid because the second half exceeds field size"
+      )
+      innerTestAssertSignFail(
+        key_indices = List(0,1,2),
+        aggnonce_index = 0,
+        msg_index = 0,
+        secnonce_index = 1,
+        error_message = "first secnonce value is out of range",
+        comment = "Secnonce is invalid which may indicate nonce reuse"
+      )
+
+      def innerTestAssertVerifyFail(sig: String, key_indices: List[Int], nonce_indices: List[Int], msg_index: Int, signer_index: Int, error_message: String, comment:String = ""): Unit = {
+        assertFails(
+          Musig2.partialSigVerify(
+            psig = ByteVector.fromValidHex(sig),
+            pubnonces = nonce_indices.map(i => pnonces(i)),
+            pubkeys = key_indices.map(i => pubkeys(i)),
+            tweaks = List.empty,
+            isXonlyTweak = List.empty,
+            message = msgs(msg_index),
+            index = signer_index
+          )
+        )
+      }
+
+      innerTestAssertVerifyFail(
+        sig = "97AC833ADCB1AFA42EBF9E0725616F3C9A0D5B614F6FE283CEAAA37A8FFAF406",
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        msg_index = 0,
+        signer_index = 0,
+        error_message = "verify_fail",
+        comment = "Wrong signature (which is equal to the negation of valid signature)"
+      )
+      innerTestAssertVerifyFail(
+        sig = "68537CC5234E505BD14061F8DA9E90C220A181855FD8BDB7F127BB12403B4D3B",
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        msg_index = 0,
+        signer_index = 1,
+        error_message = "verify_fail",
+        comment = "Wrong signer"
+      )
+      innerTestAssertVerifyFail(
+        sig = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+        key_indices = List(0,1,2),
+        nonce_indices = List(0,1,2),
+        msg_index = 0,
+        signer_index = 0,
+        error_message = "verify_fail",
+        comment = "Signature exceeds group size"
+      )
+      innerTestAssertVerifyFail(
+        sig = "68537CC5234E505BD14061F8DA9E90C220A181855FD8BDB7F127BB12403B4D3B",
+        key_indices = List(0,1,2),
+        nonce_indices = List(4,1,2),
+        msg_index = 0,
+        signer_index = 0,
+        error_message = "invalid_contribution (pubnonce, signer0)",
+        comment = "Invalid pubnonce (signer 0)"
+      )
+      innerTestAssertVerifyFail(
+        sig = "68537CC5234E505BD14061F8DA9E90C220A181855FD8BDB7F127BB12403B4D3B",
+        key_indices = List(3,1,2),
+        nonce_indices = List(0,1,2),
+        msg_index = 0,
+        signer_index = 0,
+        error_message = "invalid_contribution (pubkey, signer0)",
+        comment = "Invalid pubkey (signer 0)"
+      )
     }
   }
 }
