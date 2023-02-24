@@ -1976,7 +1976,7 @@ object Script {
               conditions = List.empty[Boolean],
               altstack = List.empty[ByteVector],
               opCount = 0,
-              scriptCode = Script.parse(program)
+              scriptCode = Script.parse(witness.stack.last)
             ),
             SigVersion.SIGVERSION_WITNESS_V0
           )
