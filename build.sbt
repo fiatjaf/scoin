@@ -42,7 +42,8 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "@stablelib/chacha" -> "1.0.1",
       "@stablelib/chacha20poly1305" -> "1.0.1"
     ),
-    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) }
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+    esPackageManager := Npm
   )
   .nativeSettings(
     scalaVersion := "3.2.0",
