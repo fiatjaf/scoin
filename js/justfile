@@ -1,0 +1,8 @@
+bundle:
+    node build.js
+
+build:
+    cd .. && sbt 'scoinJS/fastLinkJS'
+
+publish:
+    npm publish
