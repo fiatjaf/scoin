@@ -143,6 +143,28 @@ object Crypto extends CryptoPlatform {
       }
     }
 
+    /**
+      * Returns a provably unspendable public key `H` by hashing the uncompressed
+      * encoding of the generator point `G` and taking the result to be the 
+      * x-coordinate of a new public key `H` with unknown discrete logarithm.
+      * 
+      * The compressed form of `H` is:
+      * `0x0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0`
+      * 
+      * For further privacy, it is recommended to add `r*G` to `H` where 
+      * `r` is  a fresh integer in the range 0..n-1.
+      * 
+      * `r` can be furnished to a verifier to prove that key path spending is
+      *  effectively not possible for a taproot output which uses `H + r*G` as
+      *  its internal public key.
+      * 
+      * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#constructing-and-spending-taproot-outputs
+      * @see https://bitcoin.stackexchange.com/questions/99722/taproot-eliminating-key-path
+      *
+      * @return
+      */
+    def unspendable: PublicKey = XOnlyPublicKey(sha256(G.toUncompressedBin)).publicKey
+
     /** This function initializes a public key from a compressed/uncompressed
       * representation without doing validity checks.
       *
