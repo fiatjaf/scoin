@@ -225,15 +225,15 @@ object Script {
   def write(script: Seq[ScriptElt], out: OutputStream): Unit = script match {
     case Nil => ()
     case OP_PUSHDATA(data, length) :: tail
-        if data.length < 0x4c && data.length == length =>
-      out.write(data.length.toInt); out.write(data.toArray); write(tail, out)
-    case OP_PUSHDATA(data, 0x4c) :: tail if data.length < 0xff =>
+      if data.length <= 0x4c && data.length == length =>
+        out.write(data.length.toInt); out.write(data.toArray); write(tail, out)
+    case OP_PUSHDATA(data, 0x4c) :: tail if data.length <= 0xff =>
       writeUInt8(0x4c, out); writeUInt8(data.length.toInt, out);
       out.write(data.toArray); write(tail, out)
-    case OP_PUSHDATA(data, 0x4d) :: tail if data.length < 0xffff =>
+    case OP_PUSHDATA(data, 0x4d) :: tail if data.length <= 0xffff =>
       writeUInt8(0x4d, out); writeUInt16(data.length.toInt, out);
       out.write(data.toArray); write(tail, out)
-    case OP_PUSHDATA(data, 0x4e) :: tail if data.length < 0xffffffff =>
+    case OP_PUSHDATA(data, 0x4e) :: tail if data.length <= 0xffffffff =>
       writeUInt8(0x4e, out); writeUInt32(data.length, out);
       out.write(data.toArray); write(tail, out)
     case op @ OP_PUSHDATA(_, _) :: _ =>
