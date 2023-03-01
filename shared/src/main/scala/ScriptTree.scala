@@ -56,17 +56,36 @@ object ScriptTree {
 
   /**
     * Calculate the merkle path-to-root for each of the
-    * leaves according to the taproot specifications.
-    * 
-    * Reminder: Inner nodes lexographically sort their children before hashing.
+    * leaves according to BIP341 specifications. 
     * 
     * Warning: This function is very inefficient. If the merkle tree is large
     * it may run out of memory.
-    *
+    * 
+    * Reminder: Inner nodes lexographically sort their children before hashing.
+    * 
+    * @see BIP341 https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki
     * @param tree
-    * @return
+    * @return a mapping of `ScriptLeaf` -> `List[ByteVector32]` where elements
+    *              of the list are the hashes of the corresponding merkle nodes
+    *              necessary to reconstruct the root hash.
+    * 
+    *                           root
+    *                           /   \
+    *                        AB     CDE
+    *                       /  \    /  \
+    *                      A    B  CD   E
+    *                             /  \
+    *                            C    D
+    * 
+    *  The proofs for leafs in the tree above are:
+    *               A -> B,CDE
+    *               B -> A,CDE
+    *               C -> D,E,AB
+    *               D -> C,E,AB
+    *               E -> CD,AB
+    *               
     */
-  def merklePaths(tree: ScriptTree[ScriptLeaf]): Map[ScriptLeaf,List[ByteVector32]] = {
+  def merkleProofs(tree: ScriptTree[ScriptLeaf]): Map[ScriptLeaf,List[ByteVector32]] = {
     
     def inner(
       subtree: ScriptTree[ScriptLeaf],
@@ -74,9 +93,24 @@ object ScriptTree {
       : Map[ScriptLeaf,List[ByteVector32]] = subtree match {
           case Leaf(value) => Map(value -> path)
           case Branch(left, right) => 
-            inner(left,subtree.hash :: path) ++ inner(right,subtree.hash :: path)
+            inner(left,right.hash :: path) ++ inner(right,left.hash :: path)
     }
     inner(tree,List.empty)
+  }
+
+  def verifyProof(
+    tree: ScriptTree[ScriptLeaf], 
+    leaf: ScriptLeaf, 
+    proof: List[ByteVector32]
+    ): Boolean = {
+      val merkleRoot = proof.foldLeft(leaf.hash) { case (a, b) =>
+              Crypto.taggedHash(
+                if (LexicographicalOrdering.isLessThan(a, b)) a ++ b
+                else b ++ a,
+                "TapBranch"
+              )
+      }
+      merkleRoot == tree.hash
   }
 
   /**
@@ -113,6 +147,14 @@ object ScriptTree {
   // helpful syntax
   implicit class scriptTreeOps(tree: ScriptTree[ScriptLeaf]){
     def hash = ScriptTree.hash(tree)
-    def merklePaths = ScriptTree.merklePaths(tree)
+    def merkleProofs = ScriptTree.merkleProofs(tree)
+    def verifyProof(leaf: ScriptLeaf, proof: List[ByteVector32]) = ScriptTree.verifyProof(tree,leaf,proof)
+    def prettyString: String = tree match {
+      case Branch(left, right) => 
+        s"${tree.hash.toHex.take(5)}... -> hashOf(${left.hash.toHex.take(5)}..., ${right.hash.toHex.take(5)}...)\n"
+        + s"${left.prettyString}\n"
+        + s"${right.prettyString}\n"
+      case Leaf(value) => s"${value.hash.toHex.take(5)}... -> hashOf(${value})"
+    }
   }
 }

@@ -62,10 +62,12 @@ object ScriptTreeTest extends TestSuite {
       assert(merkleRoot1 == merkleRoot2)
     }
 
-    test("ScriptTree - calculate merkle paths") {
+    test("ScriptTree - calculate and verify merkle proofs") {
       // just some bogus scripts, pushing an unspendable key
-      val scripts = List.fill(3)(
-        List(OP_PUSHDATA(Crypto.PublicKey.unspendable.xonly), OP_CHECKSIG)
+      val scripts = List(
+        List(OP_1),
+        List(OP_2),
+        List(OP_3)
       )
       val leaves = scripts.zipWithIndex.map { case (script, idx) =>
           ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
@@ -75,12 +77,18 @@ object ScriptTreeTest extends TestSuite {
       //    /   \
       //  /  \   #3
       // #1  #2
+
+      // useful for visualizing
+      // println(scriptTree.prettyString) 
+
       val merkleRoot = scriptTree.hash
 
-      val paths = scriptTree.merklePaths
-
+      val proofs = scriptTree.merkleProofs
+      
       // now to reconstruct the merkle root from a given leaf and path
-      // ???
+      proofs.foreach{
+        case (leaf,proof) => assert(scriptTree.verifyProof(leaf,proof))
+      }
       
     }
   }
