@@ -122,6 +122,12 @@ object TxIn extends BtcSerializer[TxIn] {
   }
 
   def coinbase(script: Seq[ScriptElt]): TxIn = coinbase(Script.write(script))
+
+  def weight(txIn: TxIn, protocolVersion: Long = PROTOCOL_VERSION): Int = {
+    // Note that the write function doesn't serialize witness data, so we count it separately.
+    val witnessWeight = if (txIn.hasWitness) ScriptWitness.write(txIn.witness, protocolVersion).size else 0
+    return (4 * write(txIn).size + witnessWeight).toInt
+  }
 }
 
 /** Transaction input
@@ -148,6 +154,8 @@ case class TxIn(
   def isFinal: Boolean = sequence == TxIn.SEQUENCE_FINAL
 
   def hasWitness: Boolean = witness.isNotNull
+
+  def weight: Int = TxIn.weight(this)
 
   override def serializer: BtcSerializer[TxIn] = TxIn
 }
@@ -180,6 +188,10 @@ object TxOut extends BtcSerializer[TxOut] {
       s"public key script is ${publicKeyScript.length} bytes, limit is ${Script.MAX_SCRIPT_ELEMENT_SIZE} bytes"
     )
   }
+
+  def totalSize(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int = write(txOut, protocolVersion).size.toInt
+
+  def weight(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int = 4 * totalSize(txOut, protocolVersion)
 }
 
 /** Transaction output
@@ -192,6 +204,8 @@ object TxOut extends BtcSerializer[TxOut] {
 case class TxOut(amount: Satoshi, publicKeyScript: ByteVector)
     extends BtcSerializable[TxOut] {
   override def serializer: BtcSerializer[TxOut] = TxOut
+  
+  def weight: Int = TxOut.weight(this)
 }
 
 object ScriptWitness extends BtcSerializer[ScriptWitness] {
@@ -327,14 +341,20 @@ object Transaction extends BtcSerializer[Transaction] {
     }
   }
 
+  /** total size of the transaction without witness data */
   def baseSize(tx: Transaction, protocolVersion: Long = PROTOCOL_VERSION): Int =
     write(tx, protocolVersion | SERIALIZE_TRANSACTION_NO_WITNESS).length.toInt
 
+  /** total size of the transaction with witness data, if any */
   def totalSize(
       tx: Transaction,
       protocolVersion: Long = PROTOCOL_VERSION
   ): Int = write(tx, protocolVersion).length.toInt
 
+  /** Calculate the transaction weight:
+    *  Witness data uses 1 weight unit, while non-witness data uses 4 weight units.
+    *  We thus serialize once with witness data and 3 times without witness data.
+    * */
   def weight(tx: Transaction, protocolVersion: Long = PROTOCOL_VERSION): Int =
     totalSize(tx, protocolVersion) + 3 * baseSize(tx, protocolVersion)
 
