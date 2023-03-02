@@ -4,6 +4,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scodec.bits._
 import scala.scalajs.js.typedarray.Uint8Array
+import scala.scalajs.js.JSConverters._
 
 import Crypto._
 
@@ -107,8 +108,23 @@ object ScoinJS {
   @JSExportAll
   class ScriptTreeJS(tree: ScriptTree[ScriptLeaf]) {
     def hash: String = tree.hash.toHex
+
     def merkleProofs = tree.merkleProofs.map{
-      case(leaf,proof) => leaf.script.toHex -> proof.map(_.toHex)
-    }
+      case(leaf,proof) =>
+                    Map(
+                      "script" -> leaf.script.toHex,
+                      "proof" -> proof.map(_.toHex).toJSArray
+                    )
+    }.toJSArray.map(_.toJSDictionary)
+    
+    def verifyProof(scriptLeaf: String, merkleProof: js.Array[String]): Boolean =
+      tree.verifyProof(
+        leaf = ScriptLeaf(
+          id = 0, // id is not included in hash, so can be any integer here
+          script = ByteVector.fromValidHex(scriptLeaf),
+          leafVersion = Script.TAPROOT_LEAF_TAPSCRIPT
+        ),
+        proof = merkleProof.toList.map(ByteVector32.fromValidHex(_))
+      )
   }
 }
