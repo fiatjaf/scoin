@@ -225,7 +225,7 @@ object Script {
   def write(script: Seq[ScriptElt], out: OutputStream): Unit = script match {
     case Nil => ()
     case OP_PUSHDATA(data, length) :: tail
-      if data.length <= 0x4c && data.length == length =>
+      if data.length < 0x4c && data.length == length =>
         out.write(data.length.toInt); out.write(data.toArray); write(tail, out)
     case OP_PUSHDATA(data, 0x4c) :: tail if data.length <= 0xff =>
       writeUInt8(0x4c, out); writeUInt8(data.length.toInt, out);
