@@ -5,11 +5,20 @@ A simple Bitcoin library for Scala that is mostly copied from [ACINQ](https://gi
 
 See API documentation on https://javadoc.io/doc/com.fiatjaf/scoin_3/latest/.
 
+### Latest Features
+  - construct and spend [**taproot outputs**](https://github.com/fiatjaf/scoin/blob/master/shared/src/test/scala/TaprootTest.scala)
+
 ## Projects using scoin
 
   - https://github.com/fiatjaf/poncho
   - https://github.com/fiatjaf/immortan
   - https://github.com/fiatjaf/openchain
+
+### Experiments with scoin
+
+`scoin` is a good choice for experimenting with bitcoin primitives or constructing complex custom transactions.
+  - [small experiments and examples](https://gist.github.com/VzxPLnHqr/acc4fd4ee399196e7723a7d36a90834b)
+  - [larger experimental project](https://github.com/VzxPLnHqr/sig-pow)
 
 ## libsecp256k1 dependencies
 
