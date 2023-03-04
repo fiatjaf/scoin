@@ -517,7 +517,7 @@ object Crypto extends CryptoPlatform {
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
 
     /** Calculates a `taggedHash(m,"TapTweak")` where `m:ByteVector32` is
-      * calculated as: val m = if(merkleRoot.isEmpty) thisXOnlyPublicKey.value
+      * calculated as: val m = if(!merkleRoot.isEmpty) thisXOnlyPublicKey.value
       * ++ merkleRoot else thisXOnlyPublicKey.value
       * @param merkleRoot
       * @return
