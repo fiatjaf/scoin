@@ -87,38 +87,50 @@ object Musig2TaprootTest extends TestSuite {
         aggregateXOnlyPublicKey = Some(outputXOnlyPubKey),
         message = Some(z),
         extraIn = None,
-        nextRand32 = ByteVector32.fromValidHex("01"*32)
+        nextRand32 = ByteVector32.fromValidHex("01"*32) // not secure
       )
 
+      // Note: other than the public key and fresh randomnesss,
+      // the other fields are optional for nonce generation. Supplying them
+      // just provides some "added protection" in case the available randomness
+      // is not the best (think constrained hardware device).
       val (bob_secnonce, bob_pubnonce) = Musig2.nonceGen(
         secretSigningKey = Some(alice_priv.value),
         pubKey = bob_pub,
         aggregateXOnlyPublicKey = Some(outputXOnlyPubKey),
         message = Some(z.bytes),
         extraIn = None,
-        nextRand32 = ByteVector32.fromValidHex("02"*32)
+        nextRand32 = ByteVector32.fromValidHex("02"*32) // not secure
       )
 
       // combine their respective pubnonces
       val aggnonce = Musig2.nonceAgg(List(alice_pubnonce, bob_pubnonce))
 
+      // Create a signing session context
+      // The context can be re-created by either of Alice or Bob
       val ctx = Musig2.SessionCtx(
           aggNonce = aggnonce,
           numPubKeys = 2,
           pubKeys = List(alice_pub.value, bob_pub.value),
-          numTweaks = 0,
-          tweaks = List(),
-          isXonlyTweak = List(),
-          message = z
+          numTweaks = 0, // default: no tweaks
+          tweaks = List(), // default: no tweaks
+          isXonlyTweak = List(), // default: no tweaks
+          message = z // the (hash of) the spending transaction
       )
 
+      // Alice and Bob each independently sign using the Musig2 signing algorithm.
+      // The resulting partial signatures are 32-bytes each.
       val alice_psig = Musig2.sign(alice_secnonce,alice_priv,ctx)
       val bob_psig = Musig2.sign(bob_secnonce,bob_priv,ctx)
 
+      // Combine the partial signatures into a complete, valid BIP340 signature.
       val sig = Musig2.partialSigAgg(List(alice_psig,bob_psig),ctx)
 
+      // Update our transaction to include the signature in the witness.
       val signedTx = unsignedSpendingTx.updateWitness(0,ScriptWitness(List(sig)))
 
+      // Verify that our spending transaction is valid. The below would throw
+      // an exception if not.
       Transaction.correctlySpends(signedTx,List(fundingTx),ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS)
     }
   }
