@@ -36,11 +36,11 @@ case class Psbt(
 
   require(
     global.tx.txIn.length == inputs.length,
-    "there must be one partially signed input per input of the unsigned tx"
+    s"there are ${global.tx.txIn.length} inputs on the unsigned tx, but ${inputs.length} inputs on the psbt"
   )
   require(
     global.tx.txOut.length == outputs.length,
-    "there must be one partially signed output per output of the unsigned tx"
+    s"there are ${global.tx.txOut.length} outputs on the unsigned tx, but ${outputs.length} outputs on the psbt"
   )
 
   /** Implements the PSBT updater role; adds information about a given segwit
