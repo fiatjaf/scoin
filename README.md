@@ -7,6 +7,7 @@ See API documentation on https://javadoc.io/doc/com.fiatjaf/scoin_3/latest/.
 
 ### Latest Features
   - construct and spend [**taproot outputs**](https://github.com/fiatjaf/scoin/blob/master/shared/src/test/scala/TaprootTest.scala)
+  - [`pay2tr` with `Musig2`](https://github.com/fiatjaf/scoin/blob/master/shared/src/test/scala/Musig2TaprootTest.scala)
 
 ## Projects using scoin
 
