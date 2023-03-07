@@ -662,10 +662,12 @@ case class Psbt(
       .unzip
     val finalTx = global.tx.copy(txIn = finalTxsIn)
 
-    Transaction.correctlySpends(
-      finalTx,
-      utxos.toMap,
-      ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+    require(
+      Transaction.correctlySpends(
+        finalTx,
+        utxos.toMap,
+        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      )
     )
 
     finalTx

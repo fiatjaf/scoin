@@ -160,10 +160,12 @@ object TaprootTest extends TestSuite {
       )
 
       // now verify the transaction too
-      Transaction.correctlySpends(
-        tx2,
-        List(tx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(tx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -174,10 +176,12 @@ object TaprootTest extends TestSuite {
       val tx2 = Transaction.read(
         "01000000000101d1f1c1f8cdf6759167b90f52c9ad358a369f95284e841d7a2536cef31c0549580100000000fdffffff020000000000000000316a2f49206c696b65205363686e6f7272207369677320616e6420492063616e6e6f74206c69652e204062697462756734329e06010000000000225120a37c3903c8d0db6512e2b40b0dffa05e5a3ab73603ce8c9c4b7771e5412328f90140a60c383f71bac0ec919b1d7dbc3eb72dd56e7aa99583615564f9f99b8ae4e837b758773a5b2e4c51348854c8389f008e05029db7f464a5ff2e01d5e6e626174affd30a00"
       )
-      Transaction.correctlySpends(
-        tx2,
-        List(tx1),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(tx1),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -188,10 +192,12 @@ object TaprootTest extends TestSuite {
       val parent = Transaction.read(
         "020000000001013dc77d529549228b6544c09349c13eb64efa8c99e339bb3f2aa280c1e412e7b00000000000feffffff0540e13300000000002251205f4237bd79e8fe440d102a5e0c20a75160e96d42a8b19825ac90f73f1f6677685008340000000000225120e914be846f7afb29f5c3b24e5f630886ed5cbcc79a28888d91009be90924508d602f340000000000225120d9390cafa11bdeb19de21e0a2bbd541f4d0979473999503408d40814399b7f9100d40a0000000000225120e8d645f42be8700595c7cbb278602fb51471d5bb24ccd27668321b7affd167bfc8a22400000000002251201a8e36e17d0afa16139b900dc85f775d3c0c624a2786fbc05ba7db87f3a55fcd0247304402207d1c9b565cebdbbdcd5973f6f4281eb6d1fceb41f53af3c597d1deacb2086d0202204672e1a9d917456e4b8346910a031898b27f3f08221cd355cfd5ee3367c5086401210291b8fe7a5ffc27834002ccac2f62aeddff9bedb436756c2e511c5c573bb9ba4dffd30a00"
       )
-      Transaction.correctlySpends(
-        tx,
-        List(parent),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx,
+          List(parent),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -202,10 +208,12 @@ object TaprootTest extends TestSuite {
       val tx2 = Transaction.read(
         "020000000001027bc0bba407bc67178f100e352bf6e047fae4cbf960d783586cb5e430b3b700e70000000000feffffff7bc0bba407bc67178f100e352bf6e047fae4cbf960d783586cb5e430b3b700e70100000000feffffff01b4ba0e0000000000160014173fd310e9db2c7e9550ce0f03f1e6c01d833aa90140134896c42cd95680b048845847c8054756861ffab7d4abab72f6508d67d1ec0c590287ec2161dd7884983286e1cd56ce65c08a24ee0476ede92678a93b1b180c03407b5d614a4610bf9196775791fcc589597ca066dcd10048e004cd4c7341bb4bb90cee4705192f3f7db524e8067a5222c7f09baf29ef6b805b8327ecd1e5ab83ca2220f5b059b9a72298ccbefff59d9b943f7e0fc91d8a3b944a95e7b6390cc99eb5f4ac41c0d9dfdf0fe3c83e9870095d67fff59a8056dad28c6dfb944bb71cf64b90ace9a7776b22a1185fb2dc9524f6b178e2693189bf01655d7f38f043923668dc5af45bffd30a00"
       )
-      Transaction.correctlySpends(
-        tx2,
-        List(tx1),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(tx1),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -216,10 +224,12 @@ object TaprootTest extends TestSuite {
       val tx2 = Transaction.read(
         "02000000000101b41b20295ac85fd2ae3e3d02900f1a1e7ddd6139b12e341386189c03d6f5795b0000000000fdffffff0100000000000000003c6a3a546878205361746f7368692120e2889e2f32316d696c20466972737420546170726f6f74206d756c7469736967207370656e64202d426974476f044123b1d4ff27b16af4b0fcb9672df671701a1a7f5a6bb7352b051f461edbc614aa6068b3e5313a174f90f3d95dc4e06f69bebd9cf5a3098fde034b01e69e8e788901400fd4a0d3f36a1f1074cb15838a48f572dc18d412d0f0f0fc1eeda9fa4820c942abb77e4d1a3c2b99ccf4ad29d9189e6e04a017fe611748464449f681bc38cf394420febe583fa77e49089f89b78fa8c116710715d6e40cc5f5a075ef1681550dd3c4ad20d0fa46cb883e940ac3dc5421f05b03859972639f51ed2eccbf3dc5a62e2e1b15ac41c02e44c9e47eaeb4bb313adecd11012dfad435cd72ce71f525329f24d75c5b9432774e148e9209baf3f1656a46986d5f38ddf4e20912c6ac28f48d6bf747469fb100000000"
       )
-      Transaction.correctlySpends(
-        tx2,
-        List(tx1),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(tx1),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -235,10 +245,12 @@ object TaprootTest extends TestSuite {
       val tx = Transaction.read(
         "010000000001022373cf02ce7df6500ae46a4a0fbbb1b636d2debed8f2df91e2415627397a34090000000000fdffffff88c23d928893cd3509845516cf8411b7cab2738c054cc5ce7e4bde9586997c770000000000fdffffff0200000000000000002b6a29676d20746170726f6f7420f09fa5952068747470733a2f2f626974636f696e6465766b69742e6f72676e9e1100000000001976a91405070d0290da457409a37db2e294c1ffbc52738088ac04410adf90fd381d4a13c3e73740b337b230701189ed94abcb4030781635f035e6d3b50b8506470a68292a2bc74745b7a5732a28254b5f766f09e495929ec308090b01004620c13e6d193f5d04506723bd67abcc5d31b610395c445ac6744cb0a1846b3aabaeac20b0e2e48ad7c3d776cf6f2395c504dc19551268ea7429496726c5d5bf72f9333cba519c21c0000000000000000000000000000000000000000000000000000000000000000104414636070d21adc8280735383102f7a0f5978cea257777a23934dd3b458b79bf388aca218e39e23533a059da173e402c4fc5e3375e1f839efb22e9a5c2a815b07301004620c13e6d193f5d04506723bd67abcc5d31b610395c445ac6744cb0a1846b3aabaeac20b0e2e48ad7c3d776cf6f2395c504dc19551268ea7429496726c5d5bf72f9333cba519c21c0000000000000000000000000000000000000000000000000000000000000000100000000"
       )
-      Transaction.correctlySpends(
-        tx,
-        inputs,
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx,
+          inputs,
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
 
@@ -278,7 +290,8 @@ object TaprootTest extends TestSuite {
         ScriptLeaf(0, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
       )
       val merkleRoot = ScriptTree.hash(scriptTree)
-      // we choose a pubkey that does not have a corresponding private key: our funding tx cannot only by spend through the script path, not the key path
+      // we choose a pubkey that does not have a corresponding private key:
+      //   our funding tx cannot only by spend through the script path, not the key path
       val internalPubkey =
         PublicKey(
           ByteVector.fromValidHex(
@@ -344,13 +357,13 @@ object TaprootTest extends TestSuite {
           List(sigs(0), sigs(0), sigs(0), Script.write(script), controlBlock)
         )
       )
-      intercept {
-        Transaction.correctlySpends(
+      assert(
+        false == Transaction.correctlySpends(
           tx,
           List(fundingTx),
           ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
         )
-      }
+      )
 
       // spend with sigs #0 and #1
       val tx1 = tmp.updateWitness(
@@ -365,10 +378,12 @@ object TaprootTest extends TestSuite {
           )
         )
       )
-      Transaction.correctlySpends(
-        tx1,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx1,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
 
       // spend with sigs #0 and #2
@@ -384,10 +399,12 @@ object TaprootTest extends TestSuite {
           )
         )
       )
-      Transaction.correctlySpends(
-        tx2,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
 
       // spend with sigs #0, #1 and #2
@@ -397,12 +414,13 @@ object TaprootTest extends TestSuite {
           List(sigs(2), sigs(1), sigs(0), Script.write(script), controlBlock)
         )
       )
-      Transaction.correctlySpends(
-        tx3,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx3,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
-
     }
 
     test("create pay-to-script transactions") {
@@ -503,10 +521,12 @@ object TaprootTest extends TestSuite {
         val sig = Crypto.signSchnorr(hash, privs(0).tapTweak(Some(merkleRoot)))
         tmp.updateWitness(0, ScriptWitness(List(sig)))
       }
-      Transaction.correctlySpends(
-        tx,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
 
       // spending with script #1
@@ -554,10 +574,12 @@ object TaprootTest extends TestSuite {
           ScriptWitness(List(sig, Script.write(scripts(0)), controlBlock))
         )
       }
-      Transaction.correctlySpends(
-        tx1,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx1,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
 
       // spending with script #2
@@ -606,10 +628,12 @@ object TaprootTest extends TestSuite {
           ScriptWitness(List(sig, Script.write(scripts(1)), controlBlock))
         )
       }
-      Transaction.correctlySpends(
-        tx2,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx2,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
 
       // spending with script #3
@@ -656,10 +680,12 @@ object TaprootTest extends TestSuite {
           ScriptWitness(List(sig, Script.write(scripts(2)), controlBlock))
         )
       }
-      Transaction.correctlySpends(
-        tx3,
-        List(fundingTx),
-        ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+      assert(
+        Transaction.correctlySpends(
+          tx3,
+          List(fundingTx),
+          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        )
       )
     }
   }

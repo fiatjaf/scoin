@@ -11,19 +11,21 @@ object Musig2TaprootTest extends TestSuite {
       // GOAL: create a pay2tr output which is 2of2 (musig2)
       //       - fund the output
       //       - spend the output via keypath spend
-      val alice_priv = PrivateKey(BigInt(21)) // super great secret choice, Alice.
+      val alice_priv =
+        PrivateKey(BigInt(21)) // super great secret choice, Alice.
       val alice_pub = alice_priv.publicKey
 
-      val bob_priv = PrivateKey(BigInt(52)) // also really secure. Way to go Bob!
+      val bob_priv =
+        PrivateKey(BigInt(52)) // also really secure. Way to go Bob!
       val bob_pub = bob_priv.publicKey
 
       // create an aggregate public key (pointQ) in a KeyGenCtx
       // keygenctx.pointQ is the aggregate public key
-      val keygenctx = Musig2.keyAgg(List(alice_pub,bob_pub))
+      val keygenctx = Musig2.keyAgg(List(alice_pub, bob_pub))
       val pointQ = keygenctx.pointQ
 
       // construct the output public key for the taproot output
-      val outputXOnlyPubKey = pointQ.xonly.outputKey(merkleRoot = None)
+      val (outputXOnlyPubKey, _) = pointQ.xonly.tapTweak(merkleRoot = None)
 
       // fund a pay2tr output locked to
       val fundingTx = Transaction(
@@ -43,13 +45,13 @@ object Musig2TaprootTest extends TestSuite {
       // Alice and Bob agree to send the funds solely to Bob
       // Normally Bob would provide a fresh public key, but here
       // we just reuse his existing one.
-      // 
+      //
       // Bob creates an unsigned spending transaction.
       val unsignedSpendingTx = Transaction(
         version = 2,
         txIn = List(
           TxIn(
-            outPoint = OutPoint(fundingTx,0),
+            outPoint = OutPoint(fundingTx, 0),
             signatureScript = ByteVector.empty,
             sequence = TxIn.SEQUENCE_FINAL,
             witness = ScriptWitness.empty
@@ -58,7 +60,9 @@ object Musig2TaprootTest extends TestSuite {
         txOut = List(
           TxOut(
             amount = fundingTx.txOut(0).amount - Satoshi(5000), // 5000 sat fee
-            publicKeyScript = Script.pay2tr(bob_pub.xonly.outputKey(merkleRoot = None)) // to Bob only
+            // to Bob only
+            publicKeyScript =
+              Script.pay2tr(bob_pub.xonly.tapTweak(merkleRoot = None)._1)
           )
         ),
         lockTime = 0L
@@ -87,7 +91,7 @@ object Musig2TaprootTest extends TestSuite {
         aggregateXOnlyPublicKey = Some(outputXOnlyPubKey),
         message = Some(z),
         extraIn = None,
-        nextRand32 = ByteVector32.fromValidHex("01"*32) // not secure
+        nextRand32 = ByteVector32.fromValidHex("01" * 32) // not secure
       )
 
       // Note: other than the public key and fresh randomnesss,
@@ -100,7 +104,7 @@ object Musig2TaprootTest extends TestSuite {
         aggregateXOnlyPublicKey = Some(outputXOnlyPubKey),
         message = Some(z.bytes),
         extraIn = None,
-        nextRand32 = ByteVector32.fromValidHex("02"*32) // not secure
+        nextRand32 = ByteVector32.fromValidHex("02" * 32) // not secure
       )
 
       // combine their respective pubnonces
@@ -109,29 +113,36 @@ object Musig2TaprootTest extends TestSuite {
       // Create a signing session context
       // The context can be re-created by either of Alice or Bob
       val ctx = Musig2.SessionCtx(
-          aggNonce = aggnonce,
-          numPubKeys = 2,
-          pubKeys = List(alice_pub.value, bob_pub.value),
-          numTweaks = 0, // default: no tweaks
-          tweaks = List(), // default: no tweaks
-          isXonlyTweak = List(), // default: no tweaks
-          message = z // the (hash of) the spending transaction
+        aggNonce = aggnonce,
+        numPubKeys = 2,
+        pubKeys = List(alice_pub.value, bob_pub.value),
+        numTweaks = 0, // default: no tweaks
+        tweaks = List(), // default: no tweaks
+        isXonlyTweak = List(), // default: no tweaks
+        message = z // the (hash of) the spending transaction
       )
 
       // Alice and Bob each independently sign using the Musig2 signing algorithm.
       // The resulting partial signatures are 32-bytes each.
-      val alice_psig = Musig2.sign(alice_secnonce,alice_priv,ctx)
-      val bob_psig = Musig2.sign(bob_secnonce,bob_priv,ctx)
+      val alice_psig = Musig2.sign(alice_secnonce, alice_priv, ctx)
+      val bob_psig = Musig2.sign(bob_secnonce, bob_priv, ctx)
 
       // Combine the partial signatures into a complete, valid BIP340 signature.
-      val sig = Musig2.partialSigAgg(List(alice_psig,bob_psig),ctx)
+      val sig = Musig2.partialSigAgg(List(alice_psig, bob_psig), ctx)
 
       // Update our transaction to include the signature in the witness.
-      val signedTx = unsignedSpendingTx.updateWitness(0,ScriptWitness(List(sig)))
+      val signedTx =
+        unsignedSpendingTx.updateWitness(0, ScriptWitness(List(sig)))
 
       // Verify that our spending transaction is valid. The below would throw
       // an exception if not.
-      Transaction.correctlySpends(signedTx,List(fundingTx),ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS)
+      assert(
+        Transaction.correctlySpends(
+          signedTx,
+          List(fundingTx),
+          ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
+        )
+      )
     }
   }
 }

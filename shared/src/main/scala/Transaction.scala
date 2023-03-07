@@ -1,6 +1,7 @@
 package scoin
 
 import java.io.{ByteArrayOutputStream, InputStream, OutputStream}
+import scala.util.Try
 
 import scoin.Crypto.PrivateKey
 import scoin.Protocol._
@@ -125,7 +126,10 @@ object TxIn extends BtcSerializer[TxIn] {
 
   def weight(txIn: TxIn, protocolVersion: Long = PROTOCOL_VERSION): Int = {
     // Note that the write function doesn't serialize witness data, so we count it separately.
-    val witnessWeight = if (txIn.hasWitness) ScriptWitness.write(txIn.witness, protocolVersion).size else 0
+    val witnessWeight =
+      if (txIn.hasWitness)
+        ScriptWitness.write(txIn.witness, protocolVersion).size
+      else 0
     return (4 * write(txIn).size + witnessWeight).toInt
   }
 }
@@ -189,9 +193,11 @@ object TxOut extends BtcSerializer[TxOut] {
     )
   }
 
-  def totalSize(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int = write(txOut, protocolVersion).size.toInt
+  def totalSize(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int =
+    write(txOut, protocolVersion).size.toInt
 
-  def weight(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int = 4 * totalSize(txOut, protocolVersion)
+  def weight(txOut: TxOut, protocolVersion: Long = PROTOCOL_VERSION): Int =
+    4 * totalSize(txOut, protocolVersion)
 }
 
 /** Transaction output
@@ -204,7 +210,7 @@ object TxOut extends BtcSerializer[TxOut] {
 case class TxOut(amount: Satoshi, publicKeyScript: ByteVector)
     extends BtcSerializable[TxOut] {
   override def serializer: BtcSerializer[TxOut] = TxOut
-  
+
   def weight: Int = TxOut.weight(this)
 }
 
@@ -351,10 +357,10 @@ object Transaction extends BtcSerializer[Transaction] {
       protocolVersion: Long = PROTOCOL_VERSION
   ): Int = write(tx, protocolVersion).length.toInt
 
-  /** Calculate the transaction weight:
-    *  Witness data uses 1 weight unit, while non-witness data uses 4 weight units.
-    *  We thus serialize once with witness data and 3 times without witness data.
-    * */
+  /** Calculate the transaction weight: Witness data uses 1 weight unit, while
+    * non-witness data uses 4 weight units. We thus serialize once with witness
+    * data and 3 times without witness data.
+    */
   def weight(tx: Transaction, protocolVersion: Long = PROTOCOL_VERSION): Int =
     totalSize(tx, protocolVersion) + 3 * baseSize(tx, protocolVersion)
 
@@ -808,24 +814,25 @@ object Transaction extends BtcSerializer[Transaction] {
       previousOutputs: Map[OutPoint, TxOut],
       scriptFlags: Int,
       callback: Option[Runner.Callback]
-  ): Unit = {
+  ): Boolean = {
     val prevouts = tx.txIn.map(txi => previousOutputs(txi.outPoint)).toList
-    for (i <- tx.txIn.indices if !OutPoint.isCoinbase(tx.txIn(i).outPoint)) {
-      val prevOutput = previousOutputs(tx.txIn(i).outPoint)
-      val prevOutputScript = prevOutput.publicKeyScript
-      val amount = prevOutput.amount
-      val ctx = Script.Context(tx, i, amount, prevouts)
-      val runner = new Script.Runner(ctx, scriptFlags, callback)
-      if (
-        !runner.verifyScripts(
-          tx.txIn(i).signatureScript,
-          prevOutputScript,
-          tx.txIn(i).witness
+    tx.txIn.zipWithIndex.forall {
+      case (vin, i) if OutPoint.isCoinbase(vin.outPoint) => true
+      case (vin, i) => {
+        val prevOutput = previousOutputs(vin.outPoint)
+        val prevOutputScript = prevOutput.publicKeyScript
+        val amount = prevOutput.amount
+        val ctx = Script.Context(tx, i, amount, prevouts)
+        val runner = new Script.Runner(ctx, scriptFlags, callback)
+        val verification = Try(
+          runner.verifyScripts(
+            tx.txIn(i).signatureScript,
+            prevOutputScript,
+            tx.txIn(i).witness
+          )
         )
-      )
-        throw new RuntimeException(
-          s"tx ${tx.txid} does not spend its input # $i"
-        )
+        verification.getOrElse(false)
+      }
     }
   }
 
@@ -833,15 +840,14 @@ object Transaction extends BtcSerializer[Transaction] {
       tx: Transaction,
       previousOutputs: Map[OutPoint, TxOut],
       scriptFlags: Int
-  ): Unit =
-    correctlySpends(tx, previousOutputs, scriptFlags, None)
+  ): Boolean = correctlySpends(tx, previousOutputs, scriptFlags, None)
 
   def correctlySpends(
       tx: Transaction,
       inputs: Seq[Transaction],
       scriptFlags: Int,
       callback: Option[Runner.Callback]
-  ): Unit = {
+  ): Boolean = {
     val prevouts = tx.txIn
       .map(_.outPoint)
       .map(outpoint => {
@@ -857,7 +863,7 @@ object Transaction extends BtcSerializer[Transaction] {
       tx: Transaction,
       inputs: Seq[Transaction],
       scriptFlags: Int
-  ): Unit =
+  ): Boolean =
     correctlySpends(tx, inputs, scriptFlags, None)
 }
 
