@@ -21,8 +21,8 @@ object TaprootTest extends TestSuite {
       )
       val key =
         DeterministicWallet.derivePrivateKey(master, KeyPath("86'/1'/0'/0/1"))
-      val internalKey = XOnlyPublicKey(key.publicKey)
-      val outputKey = internalKey.outputKey(merkleRoot = None)
+      val internalKey = key.publicKey.xonly
+      val outputKey = internalKey.tapTweak(merkleRoot = None)._1
       assertEquals(
         "tb1phlhs7afhqzkgv0n537xs939s687826vn8l24ldkrckvwsnlj3d7qj6u57c",
         Bech32.encodeWitnessAddress("tb", 1, outputKey.value)
@@ -61,7 +61,7 @@ object TaprootTest extends TestSuite {
       )
 
       // re-create signature
-      val priv = key.privateKey.tweak(internalKey.tweak(None))
+      val priv = key.privateKey.tapTweak(None)
       // here auxiliary random data is set to null, which does not the same result as using all-zero random data
       // this is being changed in bitcoin core, so that null == all zeros
       val ourSig = Crypto.signSchnorr(hash, priv, None)
@@ -86,8 +86,8 @@ object TaprootTest extends TestSuite {
           "0101010101010101010101010101010101010101010101010101010101010101"
         )
       )
-      val internalKey = XOnlyPublicKey(privateKey.publicKey)
-      val outputKey = internalKey.outputKey(None)
+      val internalKey = privateKey.publicKey.xonly
+      val outputKey = internalKey.tapTweak(None)._1
       val address = Bech32.encodeWitnessAddress("tb", 1, outputKey.value)
       assertEquals(
         "tb1p33wm0auhr9kkahzd6l0kqj85af4cswn276hsxg6zpz85xe2r0y8snwrkwy",
@@ -130,7 +130,7 @@ object TaprootTest extends TestSuite {
         sigHashType,
         SigVersion.SIGVERSION_TAPROOT
       )
-      val priv = privateKey.tweak(internalKey.tweak(None))
+      val priv = privateKey.tapTweak(None)
       val sig = Crypto.signSchnorr(
         hash,
         priv,
@@ -283,15 +283,13 @@ object TaprootTest extends TestSuite {
       )
       val merkleRoot = ScriptTree.hash(scriptTree)
       // we choose a pubkey that does not have a corresponding private key: our funding tx cannot only by spend through the script path, not the key path
-      val internalPubkey = XOnlyPublicKey(
+      val internalPubkey =
         PublicKey(
           ByteVector.fromValidHex(
             "0x0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"
           )
-        )
-      )
-      val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
-      val parity = tweakedKey.publicKey.isOdd
+        ).xonly
+      val (tweakedKey, parity) = internalPubkey.tapTweak(Some(merkleRoot))
 
       // funding tx sends to our tapscript
       val fundingTx = Transaction(
@@ -431,7 +429,7 @@ object TaprootTest extends TestSuite {
         )
       )
       val scripts = privs.map { it =>
-        List(OP_PUSHDATA(XOnlyPublicKey(it.publicKey)), OP_CHECKSIG)
+        List(OP_PUSHDATA(it.publicKey.xonly), OP_CHECKSIG)
       }
       val leaves = scripts.zipWithIndex.map { case (script, idx) =>
         ScriptTree.Leaf(
@@ -449,9 +447,8 @@ object TaprootTest extends TestSuite {
       val merkleRoot = ScriptTree.hash(scriptTree)
 
       // we use key #1 as our internal key
-      val internalPubkey = XOnlyPublicKey(privs(0).publicKey)
-      val tweakedKey = internalPubkey.outputKey(Some(merkleRoot))
-      val parity = tweakedKey.publicKey.isOdd
+      val internalPubkey = privs(0).publicKey.xonly
+      val (tweakedKey, parity) = internalPubkey.tapTweak(Some(merkleRoot))
 
       // this is the tapscript we send funds to
       val script = Script.write(List(OP_1, OP_PUSHDATA(tweakedKey.value)))
@@ -504,7 +501,7 @@ object TaprootTest extends TestSuite {
           None
         )
         // we still need to know the merkle root of the tapscript tree
-        val sig = Crypto.signSchnorrWithTweak(hash, privs(0), Some(merkleRoot))
+        val sig = Crypto.signSchnorr(hash, privs(0).tapTweak(Some(merkleRoot)))
         tmp.updateWitness(0, ScriptWitness(List(sig)))
       }
       Transaction.correctlySpends(

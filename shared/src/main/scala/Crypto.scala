@@ -29,8 +29,6 @@ object Crypto extends CryptoPlatform {
       (BigInt(N) - BigInt(value.toHex, 16)).mod(N)
     )
 
-    def xOnlyPublicKey: XOnlyPublicKey = XOnlyPublicKey(publicKey)
-
     /** @param prefix
       *   Private key prefix
       * @return
@@ -39,16 +37,24 @@ object Crypto extends CryptoPlatform {
     def toBase58(prefix: Byte) =
       Base58Check.encode(prefix, value.bytes :+ 1.toByte)
 
-    /** Tweak this private key with the scalar value of `tweak32`
+    /** Counterparty to XOnlyPublicKey.tapTweak -- takes the same taproot merkle
+      * root and outputs a private key that can sign for the corresponding
+      * taproot external (output) public key.
       *
       * @param tweak32
       *   the value (possibly a merkleRoot) used to tweak the private key
       * @return
       *   tweaked private key
       */
-    def tweak(tweak32: ByteVector32): PrivateKey = {
+    def tapTweak(
+        merkleRoot: Option[ByteVector32] = None
+    ): PrivateKey = {
+      val tweak = merkleRoot match {
+        case None       => taggedHash(value, "TapTweak")
+        case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
+      }
       val key = if (publicKey.isEven) this else this.negate
-      key + PrivateKey(tweak32)
+      key + PrivateKey(tweak)
     }
   }
 
@@ -110,7 +116,7 @@ object Crypto extends CryptoPlatform {
     require(isPubKeyValidLax(value), "pubkey is not valid")
 
     def hash160: ByteVector = Crypto.hash160(value)
-    def xonly: XOnlyPublicKey = XOnlyPublicKey(this)
+    def xonly: XOnlyPublicKey = XOnlyPublicKey(ByteVector32(this.value.drop(1)))
     def isValid: Boolean = isPubKeyValidStrict(this.value)
     def isEven: Boolean = value(0) == 2.toByte
     def isOdd: Boolean = !isEven
@@ -143,27 +149,31 @@ object Crypto extends CryptoPlatform {
       }
     }
 
-    /**
-      * Returns a provably unspendable public key `H` by hashing the uncompressed
-      * encoding of the generator point `G` and taking the result to be the 
-      * x-coordinate of a new public key `H` with unknown discrete logarithm.
-      * 
+    /** Returns a provably unspendable public key `H` by hashing the
+      * uncompressed encoding of the generator point `G` and taking the result
+      * to be the x-coordinate of a new public key `H` with unknown discrete
+      * logarithm.
+      *
       * The compressed form of `H` is:
       * `0x0250929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0`
-      * 
-      * For further privacy, it is recommended to add `r*G` to `H` where 
-      * `r` is  a fresh integer in the range 0..n-1.
-      * 
+      *
+      * For further privacy, it is recommended to add `r*G` to `H` where `r` is
+      * a fresh integer in the range 0..n-1.
+      *
       * `r` can be furnished to a verifier to prove that key path spending is
-      *  effectively not possible for a taproot output which uses `H + r*G` as
-      *  its internal public key.
-      * 
-      * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#constructing-and-spending-taproot-outputs
-      * @see https://bitcoin.stackexchange.com/questions/99722/taproot-eliminating-key-path
+      * effectively not possible for a taproot output which uses `H + r*G` as
+      * its internal public key.
+      *
+      * @see
+      *   https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#constructing-and-spending-taproot-outputs
+      * @see
+      *   https://bitcoin.stackexchange.com/questions/99722/taproot-eliminating-key-path
       *
       * @return
       */
-    def unspendable: PublicKey = XOnlyPublicKey(sha256(G.toUncompressedBin)).publicKey
+    def unspendable: PublicKey = XOnlyPublicKey(
+      sha256(G.toUncompressedBin)
+    ).publicKey
 
     /** This function initializes a public key from a compressed/uncompressed
       * representation without doing validity checks.
@@ -462,15 +472,6 @@ object Crypto extends CryptoPlatform {
     ByteVector.fromValidHex(hex)
   }
 
-  /** @param privateKey
-    *   private key
-    * @return
-    *   the corresponding public key
-    */
-  def publicKeyFromPrivateKey(privateKey: ByteVector) = PrivateKey(
-    privateKey
-  ).publicKey
-
   /** @param data
     *   data
     * @param signature
@@ -516,44 +517,38 @@ object Crypto extends CryptoPlatform {
 
     lazy val publicKey: PublicKey = PublicKey(ByteVector(2) ++ value)
 
-    /** Calculates a `taggedHash(m,"TapTweak")` where `m:ByteVector32` is
-      * calculated as: val m = if(!merkleRoot.isEmpty) thisXOnlyPublicKey.value
-      * ++ merkleRoot else thisXOnlyPublicKey.value
-      * @param merkleRoot
-      * @return
-      *   a unique "tweak" corresponding to
-      */
-    def tweak(merkleRoot: Option[ByteVector32]): ByteVector32 =
-      merkleRoot match {
-        case None       => taggedHash(value, "TapTweak")
-        case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
-      }
-
-    /** Construct a new `XOnlyPublicKey` by (optionally) tweaking this one with
-      * a `merkleRoot` (the tweak). The tweak is used to create a private key
-      * `t` with corresponding public key `T` and the returned public key is
-      * `this.pointAdd(T)`.
+    /** Construct a new `XOnlyPublicKey` with a commitment to a taproot merkle
+      * root inside according to BIP-341. The result of this is the taproot
+      * external (output) key.
       *
       * @param merkleRoot
       * @return
       *   tweaked XOnlyPublicKey
+      * @return
+      *   parity (true if y is odd)
       */
-    def outputKey(merkleRoot: Option[ByteVector32] = None): XOnlyPublicKey =
-      this.pointAdd(PrivateKey(tweak(merkleRoot)).publicKey)
+    def tapTweak(
+        merkleRoot: Option[ByteVector32] = None
+    ): (XOnlyPublicKey, Boolean) = {
+      val tweak = merkleRoot match {
+        case None       => taggedHash(value, "TapTweak")
+        case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
+      }
+      val point = PrivateKey(tweak).publicKey
+      this + point
+    }
 
     override def toString = s"XOnlyPublicKey($toHex)"
   }
-  object XOnlyPublicKey {
-    def apply(pubKey: PublicKey): XOnlyPublicKey = XOnlyPublicKey(
-      ByteVector32(ByteVector.view(pubKey.value.drop(1).toArray))
-    )
 
+  object XOnlyPublicKey {
     implicit class xonlyOps(lhs: XOnlyPublicKey) {
-      def pointAdd(rhs: PublicKey): XOnlyPublicKey = XOnlyPublicKey(
-        lhs.publicKey + rhs
-      )
-      def plus(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
-      def +(rhs: PublicKey): XOnlyPublicKey = pointAdd(rhs)
+      // this returns the parity as a boolean == isOdd
+      def pointAdd(rhs: PublicKey): (XOnlyPublicKey, Boolean) = {
+        val combined = lhs.publicKey + rhs
+        (combined.xonly, combined.isOdd)
+      }
+      def +(rhs: PublicKey): (XOnlyPublicKey, Boolean) = pointAdd(rhs)
     }
   }
 
@@ -577,42 +572,6 @@ object Crypto extends CryptoPlatform {
       case Some(bv32) => signSchnorrImpl(data, privateKey, Some(bv32))
     }
 
-  sealed trait SchnorrTweak
-  case object NoTweak extends SchnorrTweak
-  case object NoScriptPathsTweak extends SchnorrTweak
-  case class KeyPathTweak(merkleRoot: ByteVector32) extends SchnorrTweak
-  case class Tweak(merkleRoot: ByteVector32) extends SchnorrTweak
-
-  /**
-    * Sign according to BIP340 specification but first "tweak" the private
-    * key using the merkleRoot.
-    *
-    * @param data
-    * @param privateKey
-    * @param merkleRoot
-    * @param auxrand32
-    * @return
-    */
-  def signSchnorrWithTweak(
-      data: ByteVector32,
-      privateKey: PrivateKey,
-      merkleRoot: Option[ByteVector32],
-      auxrand32: Option[ByteVector32] = None
-  ): ByteVector64 = {
-    val priv = merkleRoot match {
-      case None => privateKey
-      case Some(ByteVector32.Zeroes) =>
-        privateKey.tweak(privateKey.xOnlyPublicKey.tweak(None))
-      case _ => privateKey.tweak(privateKey.xOnlyPublicKey.tweak(merkleRoot))
-    }
-    val sig = signSchnorr(data, priv, auxrand32)
-    require(
-      verifySignatureSchnorr(sig, data, priv.xOnlyPublicKey),
-      "Cannot create Schnorr signature"
-    )
-    sig
-  }
-
   /** Verify a BIP340 schnorr signature
     *
     * @param data
@@ -627,14 +586,15 @@ object Crypto extends CryptoPlatform {
   ): Boolean =
     verifySignatureSchnorrImpl(data, signature, publicKey)
 
-  /** Find the value of `k` which would be used to construct
-    * a valid BIP340 schnorr signature. A schnorr signature
-    * is 64-bytes given by `(R,s)` where the first 32 bytes
-    * are `R = k*G`. This function returns the value `k`.
-    * 
-    * @param data, the message to be signed
+  /** Find the value of `k` which would be used to construct a valid BIP340
+    * schnorr signature. A schnorr signature is 64-bytes given by `(R,s)` where
+    * the first 32 bytes are `R = k*G`. This function returns the value `k`.
+    *
+    * @param data,
+    *   the message to be signed
     * @param privateKey
-    * @return k, the private nonce to be used in a BIP340 schnorr signature
+    * @return
+    *   k, the private nonce to be used in a BIP340 schnorr signature
     */
   def calculateBip340nonce(
       data: ByteVector32,
@@ -644,38 +604,21 @@ object Crypto extends CryptoPlatform {
     // https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
     val xonlyPub = privateKey.publicKey.xonly
     val t = auxrand32 match {
-      case None => privateKey.value.xor(taggedHash(ByteVector32.Zeroes,"BIP0340/aux"))
-      case Some(a) => privateKey.value.xor(taggedHash(a,"BIP0340/aux"))
+      case None =>
+        privateKey.value.xor(taggedHash(ByteVector32.Zeroes, "BIP0340/aux"))
+      case Some(a) => privateKey.value.xor(taggedHash(a, "BIP0340/aux"))
     }
     val rand = taggedHash(t ++ xonlyPub.value ++ data, "BIP0340/nonce")
     val kPrime = PrivateKey(rand)
     val pointR = G * kPrime
-    val k = if(pointR.isEven) kPrime else kPrime.negate
+    val k = if (pointR.isEven) kPrime else kPrime.negate
     k.value
   }
 
-  /**
-    * Convenience method which calculates the parts of the signature 
-    * that are public knowledge (can be reconstructed) by anybody.
-    * Basically a tagged hash turned into a private key
-    * see: BIP340/challenge
+  /** Convenience method which calculates the parts of the signature that are
+    * public knowledge (can be reconstructed) by anybody. Basically a tagged
+    * hash turned into a private key see: BIP340/challenge
     *
-    * @param data
-    * @param noncePointR
-    * @param publicKey
-    * @return
-    */
-  def calculateBip340challenge(
-      data: ByteVector32,
-      noncePointR: XOnlyPublicKey,
-      publicKey: XOnlyPublicKey
-  ): ByteVector32 = PrivateKey(taggedHash(noncePointR.value ++ publicKey.value ++ data,"BIP0340/challenge")).value
-  /**
-    * Convenience method which calculates the parts of the signature 
-    * that are public knowledge (can be reconstructed) by anybody.
-    * Basically a tagged hash turned into a private key
-    * see: BIP340/challenge
-    * 
     * @param data
     * @param noncePointR
     * @param publicKey
@@ -685,14 +628,19 @@ object Crypto extends CryptoPlatform {
       data: ByteVector,
       noncePointR: XOnlyPublicKey,
       publicKey: XOnlyPublicKey
-  ): ByteVector32 = PrivateKey(taggedHash(noncePointR.value ++ publicKey.value ++ data,"BIP0340/challenge")).value
+  ): ByteVector32 = PrivateKey(
+    taggedHash(
+      noncePointR.value ++ publicKey.value ++ data,
+      "BIP0340/challenge"
+    )
+  ).value
 
   /** (Unsafe) Sign according to BIP340 specification
-    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-    * Note: this is unsafe! It is uses a less-tested, inefficient, but 
-    * platform-independent implementation to do the signing.
-    * Prefer `signSchnorr` for anything in production.
-    * 
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki Note: this
+    * is unsafe! It is uses a less-tested, inefficient, but platform-independent
+    * implementation to do the signing. Prefer `signSchnorr` for anything in
+    * production.
+    *
     * @param data
     *   data to sign (32 bytes)
     * @param privateKey
@@ -710,22 +658,25 @@ object Crypto extends CryptoPlatform {
       privateKey: PrivateKey,
       auxrand32: Option[ByteVector32]
   ): ByteVector64 = {
-      // variable names below mostly follow from 
-      // https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-      val k = PrivateKey(calculateBip340nonce(data,privateKey,auxrand32))
-      val e = calculateBip340challenge(data, k.publicKey.xonly, privateKey.publicKey.xonly)
-      val ed = PrivateKey(e)*privateKey
-      val ourSig = ByteVector64(k.publicKey.xonly.value ++ (k + ed).value)
-      ourSig
+    // variable names below mostly follow from
+    // https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
+    val k = PrivateKey(calculateBip340nonce(data, privateKey, auxrand32))
+    val e = calculateBip340challenge(
+      data.bytes,
+      k.publicKey.xonly,
+      privateKey.publicKey.xonly
+    )
+    val ed = PrivateKey(e) * privateKey
+    val ourSig = ByteVector64(k.publicKey.xonly.value ++ (k + ed).value)
+    ourSig
   }
 
-  /**
-    * (Unsafe) verification of signature according to BIP340 specification
-    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-    * Note: this is unsafe! It is a uses less-tested, inefficient, but 
-    * platform-independent implementation.
-    * Prefer `verifySignatureSchnorr` for anything in production.
-    * 
+  /** (Unsafe) verification of signature according to BIP340 specification
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki Note: this
+    * is unsafe! It is a uses less-tested, inefficient, but platform-independent
+    * implementation. Prefer `verifySignatureSchnorr` for anything in
+    * production.
+    *
     * @param signature
     * @param data
     * @param publicKey
@@ -736,84 +687,88 @@ object Crypto extends CryptoPlatform {
       data: ByteVector32,
       xonlyPubKey: XOnlyPublicKey
   ): Boolean = {
-    val (pointR,s) = (XOnlyPublicKey(ByteVector32(signature.take(32))),PrivateKey(ByteVector32(signature.drop(32))))
+    val (pointR, s) = (
+      XOnlyPublicKey(ByteVector32(signature.take(32))),
+      PrivateKey(ByteVector32(signature.drop(32)))
+    )
     require(pointR.publicKey.isValid, "point R not on the curve")
     require(xonlyPubKey.publicKey.isValid, "invalid public key")
-    val h = PrivateKey(calculateBip340challenge(data,pointR,xonlyPubKey))
-    G*s == ( pointR.publicKey + (xonlyPubKey.publicKey*h) )
+    val h = PrivateKey(
+      calculateBip340challenge(data.bytes, pointR, xonlyPubKey)
+    )
+    G * s == (pointR.publicKey + (xonlyPubKey.publicKey * h))
   }
 
-  /**
-    * Tweak an otherwise valid BIP340 signature with a curve point `tweakPoint`.
-    * The result is an "Adaptor Signature". Somebody with knowledge
-    * of the discrete logarithm (the private key) for `tweakPoint` will be able 
-    * to repair the adaptor signature to reconstruct a valid BIP340 signature.
-    * See: BIP340 https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-    * See: https://suredbits.com/schnorr-applications-scriptless-scripts/
+  /** Tweak an otherwise valid BIP340 signature with a curve point `tweakPoint`.
+    * The result is an "Adaptor Signature". Somebody with knowledge of the
+    * discrete logarithm (the private key) for `tweakPoint` will be able to
+    * repair the adaptor signature to reconstruct a valid BIP340 signature. See:
+    * BIP340 https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki See:
+    * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
     * @param data
-    * @param privateKey private key used for signing 
-    * @param tweakPoint the curve point by which to "tweak" the signature
-    * @return (R',s',T) as a 96-byte ByteVector
+    * @param privateKey
+    *   private key used for signing
+    * @param tweakPoint
+    *   the curve point by which to "tweak" the signature
+    * @return
+    *   (R',s',T) as a 96-byte ByteVector
     */
   def computeSchnorrAdaptorSignatureForPoint(
-    data: ByteVector32,
-    privateKey: PrivateKey,
-    tweakPoint: PublicKey
+      data: ByteVector32,
+      privateKey: PrivateKey,
+      tweakPoint: PublicKey
   ): ByteVector = {
-    val k = PrivateKey(calculateBip340nonce(data,privateKey,None))
+    val k = PrivateKey(calculateBip340nonce(data, privateKey, None))
     val xonlyPointR = k.publicKey.xonly
     val challenge = calculateBip340challenge(
-        data,
-        xonlyPointR + tweakPoint,
-        privateKey.publicKey.xonly
+      data.bytes,
+      (xonlyPointR + tweakPoint)._1,
+      privateKey.publicKey.xonly
     )
-    val sPrime = k + (PrivateKey(challenge)*privateKey)
+    val sPrime = k + (PrivateKey(challenge) * privateKey)
     k.publicKey.xonly.value ++ sPrime.value ++ tweakPoint.xonly.value
   }
 
-  /**
-    * Tweak a valid schnorr signature `(R,s)` with a scalar value `t`
-    * to create an adaptor signature `(R - t*G, s - t, t*G). Anybody
-    * with knowledge of `t` will be able to repair the resulting adaptor
-    * signature to reconstruct the valid original signature. Because
-    * knowledge of the signing key was not necessary to create the adaptor
-    * signature, this shows that adaptor signatures posess a denaibility
-    * property.
-    * see: https://suredbits.com/schnorr-applications-scriptless-scripts/ 
+  /** Tweak a valid schnorr signature `(R,s)` with a scalar value `t` to create
+    * an adaptor signature `(R - t*G, s - t, t*G). Anybody with knowledge of `t`
+    * will be able to repair the resulting adaptor signature to reconstruct the
+    * valid original signature. Because knowledge of the signing key was not
+    * necessary to create the adaptor signature, this shows that adaptor
+    * signatures posess a denaibility property. see:
+    * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
     * @param sig
     * @param scalarTweak
     * @return
     */
   def tweakSchnorrSignatureWithScalar(
-    sig: ByteVector64,
-    scalarTweak: ByteVector32
+      sig: ByteVector64,
+      scalarTweak: ByteVector32
   ): ByteVector = {
-    val (pointR,s) = (
+    val (pointR, s) = (
       XOnlyPublicKey(ByteVector32(sig.take(32))),
       PrivateKey(ByteVector32(sig.drop(32)))
     )
     val t = PrivateKey(scalarTweak)
     val tweakPoint = t.publicKey
     (pointR.publicKey - tweakPoint).xonly.value ++
-    (s - t).value ++
-    tweakPoint.xonly.value
+      (s - t).value ++
+      tweakPoint.xonly.value
   }
 
-  /**
-    * Verify an "Adaptor Signature." If verification is successful and the
+  /** Verify an "Adaptor Signature." If verification is successful and the
     * verifier knows the discrete logarithm (private key) for the `tweakPoint`,
     * then verifier will be able to repair the adaptor signature into a complete
-    * and valid BIP340 schnorr signature by calling `repairSchnorrAdaptorSignature`.
-    * See: BIP340 https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-    * See: https://suredbits.com/schnorr-applications-scriptless-scripts/
+    * and valid BIP340 schnorr signature by calling
+    * `repairSchnorrAdaptorSignature`. See: BIP340
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki See:
+    * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
-    * @param adaptorSig 
+    * @param adaptorSig
     *   a 96-byte `ByteVector` `(R', s', T)` where each component is 32-bytes
-    *         `R'` is the expected nonce point for a final (repaired) signature
-    *         `s'` is `k’ + H(X, R’ + T, m)*x` where `k'*G = R`
-    *         `T` is the `tweakPoint` 
+    *   `R'` is the expected nonce point for a final (repaired) signature `s'`
+    *   is `k’ + H(X, R’ + T, m)*x` where `k'*G = R` `T` is the `tweakPoint`
     * @param data
     *   the message which is signed (usually a hash of a bitcoin transaction)
     * @param publicKey
@@ -821,56 +776,54 @@ object Crypto extends CryptoPlatform {
     * @return
     */
   def verifySchnorrAdaptorSignature(
-    adaptorSig: ByteVector,
-    data: ByteVector32,
-    publicKey: PublicKey
+      adaptorSig: ByteVector,
+      data: ByteVector32,
+      publicKey: PublicKey
   ): Boolean = {
-    val (pointRprime, sPrime, tweakPoint) = (
-      XOnlyPublicKey(ByteVector32(adaptorSig.take(32))),
-      PrivateKey(ByteVector32(adaptorSig.drop(32).take(32))),
-      XOnlyPublicKey(ByteVector32(adaptorSig.drop(64))).publicKey
-    )
+    val pointRprime = XOnlyPublicKey(ByteVector32(adaptorSig.take(32)))
+    val sPrime = PrivateKey(ByteVector32(adaptorSig.drop(32).take(32)))
+    val tweakPoint = XOnlyPublicKey(ByteVector32(adaptorSig.drop(64))).publicKey
+
     val challenge = calculateBip340challenge(
       data,
-      pointRprime + tweakPoint,
+      (pointRprime + tweakPoint)._1,
       publicKey.xonly
     )
-    G*sPrime == (pointRprime.publicKey + (publicKey*PrivateKey(challenge)))
+    G * sPrime == (pointRprime.publicKey + (publicKey * PrivateKey(challenge)))
   }
 
-  /**
-    * Repair an "Adaptor Signature" using knowledge of the discrete logarithm
-    * of the `tweakPoint`. Note, this does not first check whether the adaptor
-    * signature is valid. For that you should first call `verifySchnorrAdaptorSignature`.
-    * See: BIP340 https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-    * See: https://suredbits.com/schnorr-applications-scriptless-scripts/
+  /** Repair an "Adaptor Signature" using knowledge of the discrete logarithm of
+    * the `tweakPoint`. Note, this does not first check whether the adaptor
+    * signature is valid. For that you should first call
+    * `verifySchnorrAdaptorSignature`. See: BIP340
+    * https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki See:
+    * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
-    * @param adaptorSig 
+    * @param adaptorSig
     *   a 96-byte `ByteVector` `(R', s', T)` where each component is 32-bytes
-    *         `R'` is the expected nonce point for a final (repaired) signature
-    *         `s'` is `k’ + H(X, R’ + T, m)*x` where `k'*G = R`
-    *         `T` is the `tweakPoint` 
+    *   `R'` is the expected nonce point for a final (repaired) signature `s'`
+    *   is `k’ + H(X, R’ + T, m)*x` where `k'*G = R` `T` is the `tweakPoint`
     * @param data
     *   the message which is signed (usually a hash of a bitcoin transaction)
     * @param publicKey
     *   the public key of the signer
     * @param scalarTweak
-    *   the discrete logarithm of the `tweakPoint` (`scalarTweak*G == tweakPoint`)
+    *   the discrete logarithm of the `tweakPoint` (`scalarTweak*G ==
+    *   tweakPoint`)
     * @return
     */
   def repairSchnorrAdaptorSignature(
-    adaptorSig: ByteVector,
-    data: ByteVector32,
-    publicKey: PublicKey,
-    scalarTweak: ByteVector32
+      adaptorSig: ByteVector,
+      data: ByteVector32,
+      publicKey: PublicKey,
+      scalarTweak: ByteVector32
   ): ByteVector64 = {
-    val (pointRprime, sPrime, tweakPoint) = (
-      XOnlyPublicKey(ByteVector32(adaptorSig.take(32))),
-      PrivateKey(ByteVector32(adaptorSig.drop(32).take(32))),
-      XOnlyPublicKey(ByteVector32(adaptorSig.drop(64))).publicKey
-    )
+    val pointRprime = XOnlyPublicKey(ByteVector32(adaptorSig.take(32)))
+    val sPrime = PrivateKey(ByteVector32(adaptorSig.drop(32).take(32)))
+    val tweakPoint = XOnlyPublicKey(ByteVector32(adaptorSig.drop(64))).publicKey
+
     val s = sPrime + PrivateKey(scalarTweak)
-    val pointR = pointRprime + tweakPoint
+    val pointR = (pointRprime + tweakPoint)._1
     ByteVector64(pointR.value ++ s.value)
   }
 

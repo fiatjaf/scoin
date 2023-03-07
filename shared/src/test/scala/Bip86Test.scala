@@ -4,7 +4,6 @@ import scoin._
 import utest._
 import scodec.bits._
 import scoin.DeterministicWallet.KeyPath
-import scoin.Crypto.XOnlyPublicKey
 import scoin.Crypto.PrivateKey
 
 object Bip86Test extends TestSuite {
@@ -50,14 +49,14 @@ object Bip86Test extends TestSuite {
           .derivePrivateKey(master, KeyPath("m/86'/0'/0'/0/0"))
           .secretkeybytes
       )
-      val internalKey = XOnlyPublicKey(key.publicKey)
+      val internalKey = key.publicKey.xonly
       assertEquals(
         internalKey.value,
         ByteVector32.fromValidHex(
           "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115"
         )
       )
-      val outputKey = internalKey.outputKey(merkleRoot = None)
+      val outputKey = internalKey.tapTweak(merkleRoot = None)._1
       assertEquals(
         outputKey.value,
         ByteVector32.fromValidHex(
@@ -79,14 +78,14 @@ object Bip86Test extends TestSuite {
           .derivePrivateKey(master, KeyPath("m/86'/0'/0'/0/1"))
           .secretkeybytes
       )
-      val internalKey1 = XOnlyPublicKey(key1.publicKey)
+      val internalKey1 = key1.publicKey.xonly
       assertEquals(
         internalKey1.value,
         ByteVector32.fromValidHex(
           "83dfe85a3151d2517290da461fe2815591ef69f2b18a2ce63f01697a8b313145"
         )
       )
-      val outputKey1 = internalKey1.outputKey(merkleRoot = None)
+      val outputKey1 = internalKey1.tapTweak(merkleRoot = None)._1
       assertEquals(
         outputKey1.value,
         ByteVector32.fromValidHex(
@@ -108,14 +107,14 @@ object Bip86Test extends TestSuite {
           .derivePrivateKey(master, KeyPath("m/86'/0'/0'/1/0"))
           .secretkeybytes
       )
-      val internalKey2 = XOnlyPublicKey(key2.publicKey)
+      val internalKey2 = key2.publicKey.xonly
       assertEquals(
         internalKey2.value,
         ByteVector32.fromValidHex(
           "399f1b2f4393f29a18c937859c5dd8a77350103157eb880f02e8c08214277cef"
         )
       )
-      val outputKey2 = internalKey2.outputKey(merkleRoot = None)
+      val outputKey2 = internalKey2.tapTweak(merkleRoot = None)._1
       assertEquals(
         outputKey2.value,
         ByteVector32.fromValidHex(
@@ -137,8 +136,8 @@ object Bip86Test extends TestSuite {
       )
       val key =
         DeterministicWallet.derivePrivateKey(master, KeyPath("86'/1'/0'/0/1"))
-      val internalKey = XOnlyPublicKey(key.publicKey)
-      val outputKey = internalKey.outputKey(None)
+      val internalKey = key.publicKey.xonly
+      val outputKey = internalKey.tapTweak(None)._1
       assertEquals(
         "tb1phlhs7afhqzkgv0n537xs939s687826vn8l24ldkrckvwsnlj3d7qj6u57c",
         Bech32.encodeWitnessAddress("tb", 1, outputKey.value)
