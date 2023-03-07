@@ -50,8 +50,8 @@ object Crypto extends CryptoPlatform {
         merkleRoot: Option[ByteVector32] = None
     ): PrivateKey = {
       val tweak = merkleRoot match {
-        case None       => taggedHash(value, "TapTweak")
-        case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
+        case None       => taggedHash(publicKey.xonly.value, "TapTweak")
+        case Some(bv32) => taggedHash(publicKey.xonly.value ++ bv32, "TapTweak")
       }
       val key = if (publicKey.isEven) this else this.negate
       key + PrivateKey(tweak)

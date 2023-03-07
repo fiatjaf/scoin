@@ -215,5 +215,12 @@ object CryptoTest extends TestSuite {
         (pk1 * sk2).value.toHex ==> "02495ddcf039e394422e1733359e81c41207f42f37986953beb370223414e7005c"
       }
     }
+
+    test("key tweaking") {
+      val key = PrivateKey(randomBytes32())
+      val skTweak = key.tapTweak(None).publicKey.xonly
+      val pkTweak = key.publicKey.xonly.tapTweak(None)._1
+      assert(skTweak == pkTweak)
+    }
   }
 }

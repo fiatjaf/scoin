@@ -2064,9 +2064,10 @@ object Script {
             }
             val parity = (control(0).toInt & 0x01) == 0x01
             require(
-              outputKey == internalKey.tapTweak(Some(ByteVector32(merkleRoot)))
+              (outputKey, parity) == internalKey.tapTweak(
+                Some(ByteVector32(merkleRoot))
+              )
             )
-            require(parity == outputKey.publicKey.isOdd)
 
             if (leafVersion == TAPROOT_LEAF_TAPSCRIPT) {
               context.validationWeightLeft = Some(
