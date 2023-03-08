@@ -131,7 +131,7 @@ object Musig2 {
     val pointQ1 = (pointQ * PrivateKey(g)) + (G * PrivateKey(t))
     require(
       pointQ1.isValid,
-      "tweaked combined pub key Q is not valid (infinte?)"
+      "tweaked combined pub key Q is not valid (infinite?)"
     )
     val gacc1 = (g * gacc).mod(N)
     val tacc1 = (t + g * tacc).mod(N)
