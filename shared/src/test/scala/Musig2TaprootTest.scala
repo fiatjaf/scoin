@@ -231,19 +231,44 @@ object Musig2TaprootTest extends TestSuite {
       assert(
         (G*PrivateKey(sagg)) == (pointR + pointQ*PrivateKey(e))
       )
+      // same assertion as above, but wrapped in a function (so we do not need
+      // to remember the math!)
+      assert(
+        Musig2.verifyAdaptorSignature(
+          verifier_psig = alice_psig,
+          prover_psig = bob_psig,
+          ctx = ctx,
+          adaptorPointT = pointT
+        )
+      )
 
       // With the above check done, Alice can now send Bob her partial signature.
       // Bob can then repair her partial signature to create a valid BIP340
       // schnorr signature `sig`.
-      val sig = ByteVector64(
+      val sigTheHardWay = ByteVector64(
         pointRplusT.xonly.value ++ (PrivateKey(sagg) + t).value
       )
-      assert(verifySignatureSchnorr(sig,msg,pointQ.xonly))
+      assert(verifySignatureSchnorr(sigTheHardWay,msg,pointQ.xonly))
+      
+      // repeat the above, but using the functions
+      // notice how the message and aggregate pubkey do not need to be
+      // provided -- they can be reconstructed from the `ctx`
+      val sig = Musig2.repairAdaptorSignature(
+          partialSigs = List(alice_psig, bob_psig),
+          ctx = ctx,
+          adaptorSecret = t.value,
+          checkValid = true // if true, then verify the schnorr sig, or throw
+      )
 
       // If Bob ever publishes `sig`, Alice can now easiy extract `t` from it.
       assert(
         Musig2.int(t.value) == (Musig2.intModN(sig.drop(32)) - sagg).mod(N)
       )
+      val recoveredAdaptorSecret = Musig2.recoverAdaptorSecret(
+        sig = sig,
+        partialSigs = List(alice_psig, bob_psig)
+      )
+      assert(recoveredAdaptorSecret == t.value)
       // fin!
     }
   }

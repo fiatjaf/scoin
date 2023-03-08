@@ -474,6 +474,10 @@ object Musig2 {
   /** Sign according to Musig2 specification.
     * @see
     *   https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki
+    *  
+    * If the optional `adaptorPoint` is set, then what is returned 
+    * is a parital signature which can be used to verify (or construct) 
+    * a musig2 adaptor signature. 
     *
     * @param secnonce
     *   The secret nonce secnonce that has never been used as input to Sign
@@ -482,6 +486,8 @@ object Musig2 {
     *   the secret signing key
     * @param ctx
     *   the SessionCtx
+    * @param adaptorPoint
+    *   an optional XOnlyPublicKey to be used as an adaptor point.
     * @return
     *   a partial signature which can be aggregated according to Musig2
     */
@@ -519,7 +525,72 @@ object Musig2 {
     }
     psig
   }
+  
+  /**
+    * A verifier can verify that a partial signature given to her by a
+    * prover, along with a session context and an adaptor point, is a valid
+    * adaptor signature.
+    * 
+    * If the verifier then gives its partial signature to the prover,
+    * the prover will be able to construct a valid BIP340 signature `sig`.
+    * 
+    * If/when the prover then publishes `sig` to the block, the verifier will
+    * be able to recover the discrete logarithm `t` for the adaptor point `T`
+    * 
+    * @see 
+    *   https://github.com/t-bast/lightning-docs/blob/master/schnorr.md#musig2-adaptor-signatures
+    *
+    * @param verifier_psig
+    * @param prover_psig
+    * @param ctx
+    * @param adaptorPointT
+    * @return
+    */
+  def verifyAdaptorSignature(
+        verifier_psig: ByteVector32, 
+        prover_psig: ByteVector32,
+        ctx: SessionCtx,
+        adaptorPointT: XOnlyPublicKey
+  ): Boolean = {
+    val sagg = (intModN(verifier_psig) + intModN(prover_psig)).mod(N)
+    val SessionValues(pointQ,_,_,_,pointR,e) = ctx.sessionValues(Some(adaptorPointT))
 
+    (G*PrivateKey(sagg)) == (pointR + pointQ*PrivateKey(e))
+  }
+
+  def repairAdaptorSignature(
+        partialSigs: List[ByteVector32],
+        ctx: SessionCtx,
+        adaptorSecret: ByteVector32,
+        checkValid: Boolean = false
+  ): ByteVector64 = {
+      val t = PrivateKey(intModN(adaptorSecret))
+      val adaptorPointT = t.publicKey.xonly
+      val pointRplusT = ctx.sessionValues(Some(adaptorPointT)).pointR + adaptorPointT.publicKey
+      val sagg = partialSigs.map(intModN(_))
+                .foldLeft(BigInt(0)){ case (l,r) => (l+r).mod(N) }
+      
+      val sig = ByteVector64(
+        pointRplusT.xonly.value ++ (PrivateKey(sagg) + t).value
+      )
+      if(checkValid) {
+        require(
+          verifySignatureSchnorr(sig,ByteVector32(ctx.message),ctx.sessionValues().pointQ.xonly),
+          "adaptor signature did not repair to become valid BIP340 schnorr sig"
+          )
+      }
+      sig
+  }
+
+  def recoverAdaptorSecret( 
+    sig: ByteVector64, 
+    partialSigs: List[ByteVector32]
+  ): ByteVector32 = {
+      val sagg = partialSigs.map(intModN(_))
+                .foldLeft(BigInt(0)){ case (l,r) => (l+r).mod(N) }
+                
+      PrivateKey((intModN(sig.drop(32)) - sagg).mod(N)).value
+  }
   /**
   * Syntax helpers
   */
