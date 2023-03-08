@@ -25,7 +25,8 @@ object Musig2TaprootTest extends TestSuite {
       val pointQ = keygenctx.pointQ
 
       // construct the output public key for the taproot output
-      val (outputXOnlyPubKey, _) = pointQ.xonly.tapTweak(merkleRoot = None)
+      // since this is a keypath spend, we do not need to `.tapTweak`
+      val outputXOnlyPubKey = pointQ.xonly
 
       // fund a pay2tr output locked to
       val fundingTx = Transaction(
@@ -141,7 +142,7 @@ object Musig2TaprootTest extends TestSuite {
           .correctlySpends(
             signedTx,
             List(fundingTx),
-            ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
+            ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
           )
           .isSuccess
       )
