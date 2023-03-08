@@ -1,5 +1,6 @@
 package scoin
 
+import scala.util.Try
 import scoin._
 import utest._
 import scodec.bits.ByteVector
@@ -94,22 +95,22 @@ object Musig2Test extends TestSuite {
       // fail when a pubkey is invalid
       // signer(1) pubkey is invalid
       val pubkeys03 = pubkeys_bytes(0) :: pubkeys_bytes(3) :: Nil
-      intercept(
-        Musig2.keyAgg(pubkeys03.map(PublicKey(_)))
+      assert(
+        Try(Musig2.keyAgg(pubkeys03.map(PublicKey(_)))).isFailure
       )
 
       // fail when a pubkey is invalid
       // signer(1) public key exceeds field size
       val pubkeys04 = pubkeys_bytes(0) :: pubkeys_bytes(4) :: Nil
-      intercept(
-        println(Musig2.keyAgg(pubkeys04.map(PublicKey(_))))
+      assert(
+        Try(Musig2.keyAgg(pubkeys04.map(PublicKey(_)))).isFailure
       )
 
       // fail - invalid pubkey
       // signer(1) first byte of key is not 2 or 3
       val pubkeys50 = pubkeys_bytes(5) :: pubkeys_bytes(0) :: Nil
-      intercept(
-        println(Musig2.keyAgg(pubkeys50.map(PublicKey(_))))
+      assert(
+        Try(Musig2.keyAgg(pubkeys50.map(PublicKey(_)))).isFailure
       )
 
       // note: one of these tweaks is out of range
@@ -120,22 +121,28 @@ object Musig2Test extends TestSuite {
 
       val pubkeys01 = pubkeys_bytes(0) :: pubkeys_bytes(1) :: Nil
       val keygenCtx01 = Musig2.keyAgg(pubkeys01.map(PublicKey(_)))
-      intercept(
-        Musig2.applyTweak(
-          keygenCtx = keygenCtx01,
-          tweak = tweaks_bytes(0),
-          isXonlyTweak = true
-        )
+      assert(
+        Try(
+          Musig2
+            .applyTweak(
+              keygenCtx = keygenCtx01,
+              tweak = tweaks_bytes(0),
+              isXonlyTweak = true
+            )
+        ).isFailure
       )
 
       val pubkeys6 = pubkeys_bytes(6) :: Nil
       val keygenCtx6 = Musig2.keyAgg(pubkeys6.map(PublicKey(_)))
-      intercept(
-        Musig2.applyTweak(
-          keygenCtx = keygenCtx6,
-          tweak = tweaks_bytes(1),
-          isXonlyTweak = false
-        )
+      assert(
+        Try(
+          Musig2
+            .applyTweak(
+              keygenCtx = keygenCtx6,
+              tweak = tweaks_bytes(1),
+              isXonlyTweak = false
+            )
+        ).isFailure
       )
     }
 
@@ -356,15 +363,15 @@ object Musig2Test extends TestSuite {
 
       val pnonces04 = pnonces(0) :: pnonces(4) :: Nil
       //  "comment": "Public nonce from signer 1 is invalid due wrong tag, 0x04, in the first half"
-      intercept(Musig2.nonceAgg(pnonces04))
+      assert(Try(Musig2.nonceAgg(pnonces04)).isFailure)
 
       val pnonces51 = pnonces(5) :: pnonces(1) :: Nil
       //  "comment":  "Public nonce from signer 0 is invalid because the second half does not correspond to an X coordinate"
-      intercept(Musig2.nonceAgg(pnonces51))
+      assert(Try(Musig2.nonceAgg(pnonces51)).isFailure)
 
       val pnonces61 = pnonces(6) :: pnonces(1) :: Nil
       //  "comment":  "Public nonce from signer 0 is invalid because second half exceeds field size"
-      intercept(Musig2.nonceAgg(pnonces61))
+      assert(Try(Musig2.nonceAgg(pnonces61)).isFailure)
     }
 
     test("musig2 - partial signature aggregatation") {
@@ -510,7 +517,7 @@ object Musig2Test extends TestSuite {
           message = msg
         )
         //  "comment": "Partial signature is invalid (signer index 1) because it exceeds group size"
-        intercept(Musig2.partialSigAgg(sigs, ctx))
+        assert(Try(Musig2.partialSigAgg(sigs, ctx)).isFailure)
       }
     }
 
@@ -582,15 +589,17 @@ object Musig2Test extends TestSuite {
         val psig = Musig2.sign(secnonce_tmp, sk, ctx)
         assert(psig == ByteVector32.fromValidHex(expected))
         assert(
-          Musig2.partialSigVerify(
-            psig.bytes,
-            pubnonces_,
-            pubkeys_,
-            List.empty,
-            List.empty,
-            msg_,
-            signer_index
-          )
+          Try(
+            Musig2.partialSigVerify(
+              psig.bytes,
+              pubnonces_,
+              pubkeys_,
+              List.empty,
+              List.empty,
+              msg_,
+              signer_index
+            )
+          ).getOrElse(false)
         )
       }
 
@@ -691,8 +700,8 @@ object Musig2Test extends TestSuite {
           */
         val secnonce_tmp = secnonces(secnonce_index)
         // val psig = Musig2.sign(secnonce_tmp,sk,ctx)
-        intercept(
-          Musig2.sign(secnonce_tmp, sk, ctx)
+        assert(
+          Try(Musig2.sign(secnonce_tmp, sk, ctx)).isFailure
         ) // index 0 for valid tests
       }
 
@@ -758,16 +767,18 @@ object Musig2Test extends TestSuite {
           error_message: String,
           comment: String = ""
       ): Unit = {
-        intercept(
-          Musig2.partialSigVerify(
-            psig = ByteVector.fromValidHex(sig),
-            pubnonces = nonce_indices.map(i => pnonces(i)),
-            pubkeys = key_indices.map(i => pubkeys(i)),
-            tweaks = List.empty,
-            isXonlyTweak = List.empty,
-            message = msgs(msg_index),
-            index = signer_index
-          )
+        assert(
+          Try(
+            Musig2.partialSigVerify(
+              psig = ByteVector.fromValidHex(sig),
+              pubnonces = nonce_indices.map(i => pnonces(i)),
+              pubkeys = key_indices.map(i => pubkeys(i)),
+              tweaks = List.empty,
+              isXonlyTweak = List.empty,
+              message = msgs(msg_index),
+              index = signer_index
+            )
+          ).isFailure
         )
       }
 
