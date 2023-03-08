@@ -327,7 +327,9 @@ object Musig2 {
   private[scoin] def int(bytes: ByteVector): BigInt = BigInt(bytes.toHex, 16)
   private[scoin] def int(bytes: ByteVector32): BigInt = BigInt(bytes.toHex, 16)
 
-  def getSessionValues(ctx: SessionCtx): SessionValues = {
+  def getSessionValues(
+    ctx: SessionCtx, 
+    adaptorPoint: Option[XOnlyPublicKey] = None): SessionValues = {
     // the following will throw if any pubkeys are invalid
     def keyagg_ctx_i(i: Int): KeyAggCtx = i match {
       case 0 => keyAgg(ctx.pubKeys.map(PublicKey(_)))
@@ -339,9 +341,20 @@ object Musig2 {
         )
     }
     val KeyAggCtx(pointQ, gacc, tacc) = keyagg_ctx_i(ctx.numTweaks)
+    val tweakedAggNonce = adaptorPoint match {
+      case None => 
+        ctx.aggNonce
+      case Some(xonlyPointT) =>
+        //we have an adaptorpoint which we need to add to the aggnonce
+        ctx.aggNonce.splitAt(33) match {
+        case (bytesR1,bytesR2) => 
+          (PublicKey(bytesR1) + xonlyPointT.publicKey).value ++ bytesR2
+    }
+
+    }
     val b = intModN(
       taggedHash(
-        ctx.aggNonce ++ pointQ.xonly.value.bytes ++ ctx.message,
+        tweakedAggNonce ++ pointQ.xonly.value.bytes ++ ctx.message,
         "MuSig/noncecoef"
       )
     )
@@ -360,10 +373,14 @@ object Musig2 {
       pointRfinal.isValid,
       "final nonce invalid (point at infinity maybe?)"
     )
+    val xonlyPointRplusT = adaptorPoint match {
+      case None => pointRfinal.xonly
+      case Some(xonlyPointT) => (pointRfinal + xonlyPointT.publicKey).xonly
+    }
     val e = intModN(
       Crypto.calculateBip340challenge(
         data = ctx.message,
-        noncePointR = pointRfinal.xonly,
+        noncePointR = xonlyPointRplusT,
         publicKey = pointQ.xonly
       )
     )
@@ -471,9 +488,10 @@ object Musig2 {
   def sign(
       secnonce: ByteVector,
       privateKey: PrivateKey,
-      ctx: SessionCtx
+      ctx: SessionCtx,
+      adaptorPoint: Option[XOnlyPublicKey] = None
   ): ByteVector32 = {
-    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx)
+    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx,adaptorPoint)
     val (k1p, k2p) = (int(secnonce.slice(0, 32)), int(secnonce.slice(32, 64)))
     require(k1p != 0 && k2p != 0, "secnonce k1, k2 cannot be zero")
     require(k1p < N && k2p < N, "secnonces k1,k2 cannot exceed group order")
@@ -491,10 +509,14 @@ object Musig2 {
     val s = (k1 + b * k2 + e * a * d).mod(n)
     val psig = PrivateKey(s).value
     val pubnonce = (G * PrivateKey(k1p)).value ++ (G * PrivateKey(k2p)).value
-    require(
-      partialSigVerifyInternal(psig, pubnonce, pointP, ctx),
-      "invalid partial signature, your parameters"
-    )
+    if(adaptorPoint.isEmpty) {
+      // adaptor partial ignatures are not valid in the usual sense, so
+      // so we skip the below requirement when creating adaptor signatures
+      require(
+        partialSigVerifyInternal(psig, pubnonce, pointP, ctx),
+        "invalid partial signature, your parameters"
+      )
+    }
     psig
   }
 
@@ -502,6 +524,7 @@ object Musig2 {
   * Syntax helpers
   */
   implicit class sessionCtxOps(ctx: SessionCtx) {
-    def sessionValues = getSessionValues(ctx)
+    def sessionValues(adaptorPoint: Option[XOnlyPublicKey] = None) 
+      = getSessionValues(ctx,adaptorPoint)
   }
 }
