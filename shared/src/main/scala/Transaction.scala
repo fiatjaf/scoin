@@ -814,24 +814,25 @@ object Transaction extends BtcSerializer[Transaction] {
       previousOutputs: Map[OutPoint, TxOut],
       scriptFlags: Int,
       callback: Option[Runner.Callback]
-  ): Boolean = {
+  ): Try[Unit] = Try {
     val prevouts = tx.txIn.map(txi => previousOutputs(txi.outPoint)).toList
-    tx.txIn.zipWithIndex.forall {
-      case (vin, i) if OutPoint.isCoinbase(vin.outPoint) => true
+    tx.txIn.zipWithIndex.foreach {
+      case (vin, i) if OutPoint.isCoinbase(vin.outPoint) => // skip
       case (vin, i) => {
         val prevOutput = previousOutputs(vin.outPoint)
         val prevOutputScript = prevOutput.publicKeyScript
         val amount = prevOutput.amount
         val ctx = Script.Context(tx, i, amount, prevouts)
         val runner = new Script.Runner(ctx, scriptFlags, callback)
-        val verification = Try(
-          runner.verifyScripts(
-            tx.txIn(i).signatureScript,
-            prevOutputScript,
-            tx.txIn(i).witness
-          )
+
+        // this may crash
+        val success = runner.verifyScripts(
+          tx.txIn(i).signatureScript,
+          prevOutputScript,
+          tx.txIn(i).witness
         )
-        verification.getOrElse(false)
+
+        if (!success) throw new Exception("script verification failed")
       }
     }
   }
@@ -840,14 +841,14 @@ object Transaction extends BtcSerializer[Transaction] {
       tx: Transaction,
       previousOutputs: Map[OutPoint, TxOut],
       scriptFlags: Int
-  ): Boolean = correctlySpends(tx, previousOutputs, scriptFlags, None)
+  ): Try[Unit] = correctlySpends(tx, previousOutputs, scriptFlags, None)
 
   def correctlySpends(
       tx: Transaction,
       inputs: Seq[Transaction],
       scriptFlags: Int,
       callback: Option[Runner.Callback]
-  ): Boolean = {
+  ): Try[Unit] = {
     val prevouts = tx.txIn
       .map(_.outPoint)
       .map(outpoint => {
@@ -863,7 +864,7 @@ object Transaction extends BtcSerializer[Transaction] {
       tx: Transaction,
       inputs: Seq[Transaction],
       scriptFlags: Int
-  ): Boolean =
+  ): Try[Unit] =
     correctlySpends(tx, inputs, scriptFlags, None)
 }
 

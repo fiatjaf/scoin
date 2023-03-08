@@ -74,11 +74,13 @@ object SegwitTest extends TestSuite {
         // Transaction.sign(tmp, Seq(SignData(tx1.txOut(1).publicKeyScript, priv1)))
       }
       assert(
-        Transaction.correctlySpends(
-          tx2,
-          Seq(tx1),
-          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
-        )
+        Transaction
+          .correctlySpends(
+            tx2,
+            Seq(tx1),
+            ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+          )
+          .isSuccess
       )
       assert(
         tx2.txid == ByteVector32(
@@ -125,11 +127,13 @@ object SegwitTest extends TestSuite {
       }
 
       assert(
-        Transaction.correctlySpends(
-          tx3,
-          Seq(tx2),
-          ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
-        )
+        Transaction
+          .correctlySpends(
+            tx3,
+            Seq(tx2),
+            ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+          )
+          .isSuccess
       )
       assert(
         tx3.txid == ByteVector32(

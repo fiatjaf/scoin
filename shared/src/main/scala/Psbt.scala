@@ -667,7 +667,7 @@ case class Psbt(
         finalTx,
         utxos.toMap,
         ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
-      )
+      ).isSuccess
     )
 
     finalTx

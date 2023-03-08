@@ -18,11 +18,13 @@ object PuzzleTest extends TestSuite {
         )
       )
       assert(
-        Transaction.correctlySpends(
-          tx,
-          inputs,
-          ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
-        )
+        Transaction
+          .correctlySpends(
+            tx,
+            inputs,
+            ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
+          )
+          .isSuccess
       )
     }
     test(
@@ -38,11 +40,13 @@ object PuzzleTest extends TestSuite {
         )
       )
       assert(
-        Transaction.correctlySpends(
-          tx,
-          inputs,
-          ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
-        )
+        Transaction
+          .correctlySpends(
+            tx,
+            inputs,
+            ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
+          )
+          .isSuccess
       )
     }
   }

@@ -137,11 +137,13 @@ object Musig2TaprootTest extends TestSuite {
       // Verify that our spending transaction is valid. The below would throw
       // an exception if not.
       assert(
-        Transaction.correctlySpends(
-          signedTx,
-          List(fundingTx),
-          ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
-        )
+        Transaction
+          .correctlySpends(
+            signedTx,
+            List(fundingTx),
+            ScriptFlags.MANDATORY_SCRIPT_VERIFY_FLAGS
+          )
+          .isSuccess
       )
     }
   }
