@@ -11,7 +11,7 @@ object Musig2 {
     * https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki
     */
 
-  /** KeyGen Context for Musig2 signing session.
+  /** KeyAgg Context for Musig2 signing session.
     *
     * @param pointQ
     *   The point Q representing the aggregate and potentially tweaked public
@@ -22,7 +22,7 @@ object Musig2 {
     *   The accumulated tweak tacc: an integer with `0 ≤ accumuatedTweak < n`
     *   where `n` is the group order.
     */
-  final case class KeyGenCtx(
+  final case class KeyAggCtx(
       pointQ: PublicKey,
       gacc: BigInt,
       accumulatedTweak: BigInt
@@ -41,7 +41,7 @@ object Musig2 {
     * @param pubkeys
     * @return
     */
-  def keyAgg(pubkeys: List[PublicKey]): KeyGenCtx = {
+  def keyAgg(pubkeys: List[PublicKey]): KeyAggCtx = {
     // note: max list size is 2^32 - 1
     val pk2 = getSecondKey(pubkeys.map(_.value))
     // if this function is being called, then we assume all PublicKeys in the
@@ -59,7 +59,7 @@ object Musig2 {
 
     // ensure that the aggregate point is not the point at infinity
     require(pointQ.isValid, "invalid aggregate public key")
-    KeyGenCtx(pointQ, gacc = BigInt(1), accumulatedTweak = BigInt(0))
+    KeyAggCtx(pointQ, gacc = BigInt(1), accumulatedTweak = BigInt(0))
   }
 
   private[scoin] def hashKeys(pubkeys: List[PublicKey]): ByteVector32 =
@@ -107,20 +107,20 @@ object Musig2 {
       ).mod(N)
   }
 
-  /** Tweak a `KeyGenCtx` with a tweak value so as to obtain a new (tweaked)
-    * `KeyGenCtx`.
+  /** Tweak a `KeyAggCtx` with a tweak value so as to obtain a new (tweaked)
+    * `KeyAggCtx`.
     *
-    * @param keygenCtx
+    * @param keyaggCtx
     * @param tweak
     * @param isXonlyTweak
     * @return
     */
   def applyTweak(
-      keygenCtx: KeyGenCtx,
+      keyaggCtx: KeyAggCtx,
       tweak: ByteVector32,
       isXonlyTweak: Boolean
-  ): KeyGenCtx = {
-    val KeyGenCtx(pointQ, gacc, tacc) = keygenCtx
+  ): KeyAggCtx = {
+    val KeyAggCtx(pointQ, gacc, tacc) = keyaggCtx
     val g =
       if (isXonlyTweak && pointQ.isOdd)
         BigInt(-1).mod(N)
@@ -135,7 +135,7 @@ object Musig2 {
     )
     val gacc1 = (g * gacc).mod(N)
     val tacc1 = (t + g * tacc).mod(N)
-    KeyGenCtx(pointQ1, gacc1, tacc1)
+    KeyAggCtx(pointQ1, gacc1, tacc1)
   }
 
   /** Generate Musig2 nonces. Note, this method requires access to a secure
@@ -150,7 +150,7 @@ object Musig2 {
     * @param nextRand32
     *   the next 32-bytes from cryptographically secure randomness
     * @return
-    *   (secNonce, pubNonce)
+    *   (97-byte secNonce, 66-byte pubNonce)
     */
   def nonceGen(
       secretSigningKey: Option[ByteVector32],
@@ -327,21 +327,34 @@ object Musig2 {
   private[scoin] def int(bytes: ByteVector): BigInt = BigInt(bytes.toHex, 16)
   private[scoin] def int(bytes: ByteVector32): BigInt = BigInt(bytes.toHex, 16)
 
-  def getSessionValues(ctx: SessionCtx): SessionValues = {
+  def getSessionValues(
+    ctx: SessionCtx, 
+    adaptorPoint: Option[XOnlyPublicKey] = None): SessionValues = {
     // the following will throw if any pubkeys are invalid
-    def keygen_ctx_i(i: Int): KeyGenCtx = i match {
+    def keyagg_ctx_i(i: Int): KeyAggCtx = i match {
       case 0 => keyAgg(ctx.pubKeys.map(PublicKey(_)))
       case i =>
         applyTweak(
-          keygen_ctx_i(i - 1),
+          keyagg_ctx_i(i - 1),
           ctx.tweaks(i - 1),
           ctx.isXonlyTweak(i - 1)
         )
     }
-    val KeyGenCtx(pointQ, gacc, tacc) = keygen_ctx_i(ctx.numTweaks)
+    val KeyAggCtx(pointQ, gacc, tacc) = keyagg_ctx_i(ctx.numTweaks)
+    val tweakedAggNonce = adaptorPoint match {
+      case None => 
+        ctx.aggNonce
+      case Some(xonlyPointT) =>
+        //we have an adaptorpoint which we need to add to the aggnonce
+        ctx.aggNonce.splitAt(33) match {
+        case (bytesR1,bytesR2) => 
+          (PublicKey(bytesR1) + xonlyPointT.publicKey).value ++ bytesR2
+    }
+
+    }
     val b = intModN(
       taggedHash(
-        ctx.aggNonce ++ pointQ.xonly.value.bytes ++ ctx.message,
+        tweakedAggNonce ++ pointQ.xonly.value.bytes ++ ctx.message,
         "MuSig/noncecoef"
       )
     )
@@ -360,10 +373,14 @@ object Musig2 {
       pointRfinal.isValid,
       "final nonce invalid (point at infinity maybe?)"
     )
+    val xonlyPointRplusT = adaptorPoint match {
+      case None => pointRfinal.xonly
+      case Some(xonlyPointT) => (pointRfinal + xonlyPointT.publicKey).xonly
+    }
     val e = intModN(
       Crypto.calculateBip340challenge(
         data = ctx.message,
-        noncePointR = pointRfinal.xonly,
+        noncePointR = xonlyPointRplusT,
         publicKey = pointQ.xonly
       )
     )
@@ -457,6 +474,10 @@ object Musig2 {
   /** Sign according to Musig2 specification.
     * @see
     *   https://github.com/jonasnick/bips/blob/musig2-squashed/bip-musig2.mediawiki
+    *  
+    * If the optional `adaptorPoint` is set, then what is returned 
+    * is a parital signature which can be used to verify (or construct) 
+    * a musig2 adaptor signature. 
     *
     * @param secnonce
     *   The secret nonce secnonce that has never been used as input to Sign
@@ -465,15 +486,18 @@ object Musig2 {
     *   the secret signing key
     * @param ctx
     *   the SessionCtx
+    * @param adaptorPoint
+    *   an optional XOnlyPublicKey to be used as an adaptor point.
     * @return
     *   a partial signature which can be aggregated according to Musig2
     */
   def sign(
       secnonce: ByteVector,
       privateKey: PrivateKey,
-      ctx: SessionCtx
+      ctx: SessionCtx,
+      adaptorPoint: Option[XOnlyPublicKey] = None
   ): ByteVector32 = {
-    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx)
+    val SessionValues(pointQ, gacc, _, b, pointR, e) = getSessionValues(ctx,adaptorPoint)
     val (k1p, k2p) = (int(secnonce.slice(0, 32)), int(secnonce.slice(32, 64)))
     require(k1p != 0 && k2p != 0, "secnonce k1, k2 cannot be zero")
     require(k1p < N && k2p < N, "secnonces k1,k2 cannot exceed group order")
@@ -491,10 +515,87 @@ object Musig2 {
     val s = (k1 + b * k2 + e * a * d).mod(n)
     val psig = PrivateKey(s).value
     val pubnonce = (G * PrivateKey(k1p)).value ++ (G * PrivateKey(k2p)).value
-    require(
-      partialSigVerifyInternal(psig, pubnonce, pointP, ctx),
-      "invalid partial signature, your parameters"
-    )
+    if(adaptorPoint.isEmpty) {
+      // adaptor partial ignatures are not valid in the usual sense, so
+      // so we skip the below requirement when creating adaptor signatures
+      require(
+        partialSigVerifyInternal(psig, pubnonce, pointP, ctx),
+        "invalid partial signature, your parameters"
+      )
+    }
     psig
+  }
+  
+  /**
+    * A verifier can verify that a partial signature given to her by a
+    * prover, along with a session context and an adaptor point, is a valid
+    * adaptor signature.
+    * 
+    * If the verifier then gives its partial signature to the prover,
+    * the prover will be able to construct a valid BIP340 signature `sig`.
+    * 
+    * If/when the prover then publishes `sig` to the block, the verifier will
+    * be able to recover the discrete logarithm `t` for the adaptor point `T`
+    * 
+    * @see 
+    *   https://github.com/t-bast/lightning-docs/blob/master/schnorr.md#musig2-adaptor-signatures
+    *
+    * @param verifier_psig
+    * @param prover_psig
+    * @param ctx
+    * @param adaptorPointT
+    * @return
+    */
+  def verifyAdaptorSignature(
+        verifier_psig: ByteVector32, 
+        prover_psig: ByteVector32,
+        ctx: SessionCtx,
+        adaptorPointT: XOnlyPublicKey
+  ): Boolean = {
+    val sagg = (intModN(verifier_psig) + intModN(prover_psig)).mod(N)
+    val SessionValues(pointQ,_,_,_,pointR,e) = ctx.sessionValues(Some(adaptorPointT))
+
+    (G*PrivateKey(sagg)) == (pointR + pointQ*PrivateKey(e))
+  }
+
+  def repairAdaptorSignature(
+        partialSigs: List[ByteVector32],
+        ctx: SessionCtx,
+        adaptorSecret: ByteVector32,
+        checkValid: Boolean = false
+  ): ByteVector64 = {
+      val t = PrivateKey(intModN(adaptorSecret))
+      val adaptorPointT = t.publicKey.xonly
+      val pointRplusT = ctx.sessionValues(Some(adaptorPointT)).pointR + adaptorPointT.publicKey
+      val sagg = partialSigs.map(intModN(_))
+                .foldLeft(BigInt(0)){ case (l,r) => (l+r).mod(N) }
+      
+      val sig = ByteVector64(
+        pointRplusT.xonly.value ++ (PrivateKey(sagg) + t).value
+      )
+      if(checkValid) {
+        require(
+          verifySignatureSchnorr(sig,ByteVector32(ctx.message),ctx.sessionValues().pointQ.xonly),
+          "adaptor signature did not repair to become valid BIP340 schnorr sig"
+          )
+      }
+      sig
+  }
+
+  def recoverAdaptorSecret( 
+    sig: ByteVector64, 
+    partialSigs: List[ByteVector32]
+  ): ByteVector32 = {
+      val sagg = partialSigs.map(intModN(_))
+                .foldLeft(BigInt(0)){ case (l,r) => (l+r).mod(N) }
+                
+      PrivateKey((intModN(sig.drop(32)) - sagg).mod(N)).value
+  }
+  /**
+  * Syntax helpers
+  */
+  implicit class sessionCtxOps(ctx: SessionCtx) {
+    def sessionValues(adaptorPoint: Option[XOnlyPublicKey] = None) 
+      = getSessionValues(ctx,adaptorPoint)
   }
 }
