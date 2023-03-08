@@ -120,12 +120,12 @@ object Musig2Test extends TestSuite {
       ).map(i => ByteVector32.fromValidHex(i))
 
       val pubkeys01 = pubkeys_bytes(0) :: pubkeys_bytes(1) :: Nil
-      val keygenCtx01 = Musig2.keyAgg(pubkeys01.map(PublicKey(_)))
+      val keyaggCtx01 = Musig2.keyAgg(pubkeys01.map(PublicKey(_)))
       assert(
         Try(
           Musig2
             .applyTweak(
-              keygenCtx = keygenCtx01,
+              keyaggCtx = keyaggCtx01,
               tweak = tweaks_bytes(0),
               isXonlyTweak = true
             )
@@ -133,12 +133,12 @@ object Musig2Test extends TestSuite {
       )
 
       val pubkeys6 = pubkeys_bytes(6) :: Nil
-      val keygenCtx6 = Musig2.keyAgg(pubkeys6.map(PublicKey(_)))
+      val keyaggCtx6 = Musig2.keyAgg(pubkeys6.map(PublicKey(_)))
       assert(
         Try(
           Musig2
             .applyTweak(
-              keygenCtx = keygenCtx6,
+              keyaggCtx = keyaggCtx6,
               tweak = tweaks_bytes(1),
               isXonlyTweak = false
             )
