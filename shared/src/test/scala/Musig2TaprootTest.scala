@@ -19,10 +19,10 @@ object Musig2TaprootTest extends TestSuite {
         PrivateKey(BigInt(52)) // also really secure. Way to go Bob!
       val bob_pub = bob_priv.publicKey
 
-      // create an aggregate public key (pointQ) in a KeyGenCtx
-      // keygenctx.pointQ is the aggregate public key
-      val keygenctx = Musig2.keyAgg(List(alice_pub, bob_pub))
-      val pointQ = keygenctx.pointQ
+      // create an aggregate public key (pointQ) in a KeyAggCtx
+      // keyaggctx.pointQ is the aggregate public key
+      val keyaggctx = Musig2.keyAgg(List(alice_pub, bob_pub))
+      val pointQ = keyaggctx.pointQ
 
       // construct the output public key for the taproot output
       // since this is a keypath spend, we do not need to `.tapTweak`
