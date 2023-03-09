@@ -149,10 +149,11 @@ object ScriptTree {
     def verifyProof(leaf: ScriptLeaf, proof: List[ByteVector32]) =
       ScriptTree.verifyProof(tree, leaf, proof)
     def prettyString: String = tree match {
-      case Branch(left, right) =>
-        s"${tree.hash.toHex.take(5)}... -> hashOf(${left.hash.toHex.take(5)}..., ${right.hash.toHex.take(5)}...)\n"
-          + s"${left.prettyString}\n"
-          + s"${right.prettyString}\n"
+      case Branch(left, right) => {
+        (s"${tree.hash.toHex.take(5)}... -> hashOf(${left.hash.toHex.take(5)}..., ${right.hash.toHex.take(5)}...)\n")
+        .concat(s"${left.prettyString}\n")
+        .concat(s"${right.prettyString}\n")
+      }
       case Leaf(value) => s"${value.hash.toHex.take(5)}... -> hashOf(${value})"
     }
   }

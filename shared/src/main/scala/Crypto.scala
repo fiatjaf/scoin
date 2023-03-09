@@ -535,7 +535,7 @@ object Crypto extends CryptoPlatform {
         case Some(bv32) => taggedHash(value ++ bv32, "TapTweak")
       }
       val point = PrivateKey(tweak).publicKey
-      this + point
+      this.pointAdd(point)
     }
 
     override def toString = s"XOnlyPublicKey($toHex)"
@@ -723,7 +723,7 @@ object Crypto extends CryptoPlatform {
     val xonlyPointR = k.publicKey.xonly
     val challenge = calculateBip340challenge(
       data.bytes,
-      (xonlyPointR + tweakPoint)._1,
+      (xonlyPointR.pointAdd(tweakPoint))._1,
       privateKey.publicKey.xonly
     )
     val sPrime = k + (PrivateKey(challenge) * privateKey)
@@ -786,7 +786,7 @@ object Crypto extends CryptoPlatform {
 
     val challenge = calculateBip340challenge(
       data,
-      (pointRprime + tweakPoint)._1,
+      (pointRprime.pointAdd(tweakPoint))._1,
       publicKey.xonly
     )
     G * sPrime == (pointRprime.publicKey + (publicKey * PrivateKey(challenge)))
@@ -823,7 +823,7 @@ object Crypto extends CryptoPlatform {
     val tweakPoint = XOnlyPublicKey(ByteVector32(adaptorSig.drop(64))).publicKey
 
     val s = sPrime + PrivateKey(scalarTweak)
-    val pointR = (pointRprime + tweakPoint)._1
+    val pointR = (pointRprime.pointAdd(tweakPoint))._1
     ByteVector64(pointR.value ++ s.value)
   }
 
