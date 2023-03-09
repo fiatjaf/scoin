@@ -48,14 +48,12 @@ object Musig2 {
     // list are valid public keys
     val coefficients =
       pubkeys.map(i => keyAggCoeffInternal(pubkeys, i.value, pk2))
-    val pointQ = pubkeys
+    val pointQ: PublicKey = pubkeys
       .zip(coefficients)
-      .map { case (pubkey_i, coeff_i) =>
+      .map { case ((pubkey_i:PublicKey, coeff_i:BigInt)) =>
         pubkey_i.multiply(PrivateKey(coeff_i))
       }
-      .reduce { case (lhs, rhs) =>
-        lhs + rhs
-      }
+      .reduce(_ + _)
 
     // ensure that the aggregate point is not the point at infinity
     require(pointQ.isValid, "invalid aggregate public key")
@@ -268,12 +266,17 @@ object Musig2 {
         case Success(v) => v
       }
     } yield (j, Option(pointR_ij))
-    cbytes_ext(noncepoints.filter(_._1 == 1).map(_._2).reduce { case (x, y) =>
-      point_add_ext(x, y)
-    }) // R_j (j = 1)
-      ++ cbytes_ext(noncepoints.filter(_._1 == 2).map(_._2).reduce {
-        case (x, y) => point_add_ext(x, y)
-      }) // R_j (j = 2)
+    // R_j (j = 1)
+    val R_j1 = cbytes_ext(
+                  noncepoints.filter(_._1 == 1).map(_._2)
+                  .reduce(point_add_ext)
+                )
+    // R_j (j = 2)
+    val R_j2 = cbytes_ext(
+                  noncepoints.filter(_._1 == 2).map(_._2)
+                  .reduce(point_add_ext)
+                ) 
+    R_j1 ++ R_j2
   }
 
   /** The Session Context is a data structure consisting of the following
