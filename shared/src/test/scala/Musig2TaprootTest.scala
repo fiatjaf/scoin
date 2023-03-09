@@ -271,5 +271,142 @@ object Musig2TaprootTest extends TestSuite {
       assert(recoveredAdaptorSecret == t.value)
       // fin!
     }
+
+    test("musig2 with taproot - create and spend via scriptpath") {
+      /**
+        * GOAL: construct a p2tr output which is spent via script path
+        *       using musig2.
+        */
+      val alice_priv =
+        PrivateKey(BigInt(21)) // super great secret choice, Alice.
+      val alice_pub = alice_priv.publicKey
+
+      val bob_priv =
+        PrivateKey(BigInt(52)) // also really secure. Way to go Bob!
+      val bob_pub = bob_priv.publicKey
+
+      // create an aggregate public key (pointQ) in a KeyAggCtx
+      // keyaggctx.pointQ is the aggregate public key
+      val keyaggctx = Musig2.keyAgg(List(alice_pub, bob_pub))
+      val pointQ = keyaggctx.pointQ
+
+      // simple script that locks the output the the aggregate pubkey
+      val script = OP_PUSHDATA(pointQ.xonly) :: OP_CHECKSIG :: Nil
+
+      // simple script tree with a single element
+      val scriptTree = ScriptTree.Leaf(
+        ScriptLeaf(0, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
+      )
+
+      val merkleRoot = scriptTree.hash
+
+      // we choose an internal pubkey that does not have a corresponding private key:
+      // our funding tx cannot only by spend through the script path, not the key path
+      val internalPubKey = PublicKey.unspendable.xonly
+
+      val (tweakedKey, parity) = internalPubKey.tapTweak(Some(merkleRoot))
+
+      // funding tx sends to our tapscript
+      val fundingTx = Transaction(
+        version = 2,
+        txIn = List.empty,
+        txOut =
+          List(TxOut(Satoshi(1000000), Script.pay2tr(tweakedKey))),
+        lockTime = 0
+      )
+
+      // create an unsigned transaction
+      val tmp = Transaction(
+        version = 2,
+        txIn = List(
+          TxIn(
+            OutPoint(fundingTx, 0),
+            signatureScript = ByteVector.empty,
+            TxIn.SEQUENCE_FINAL,
+            witness = ScriptWitness.empty
+          )
+        ),
+        txOut = List(
+          TxOut(
+            fundingTx.txOut(0).amount - Satoshi(5000),
+            Script.pay2wpkh(bob_pub) // send the funds to Bob
+          )
+        ),
+        lockTime = 0
+      )
+
+      val hash = Transaction.hashForSigningSchnorr(
+        tmp,
+        0,
+        List(fundingTx.txOut(0)),
+        SIGHASH_DEFAULT,
+        SigVersion.SIGVERSION_TAPSCRIPT,
+        annex = None,
+        tapleafHash = Some(merkleRoot)
+      )
+
+      // do the musig2 signing
+      val (alice_secnonce, alice_pubnonce) = Musig2.nonceGen(
+        secretSigningKey = Some(alice_priv.value),
+        pubKey = alice_pub,
+        aggregateXOnlyPublicKey = Some(pointQ.xonly),
+        message = Some(hash),
+        extraIn = None,
+        nextRand32 = ByteVector32.fromValidHex("01" * 32) // not secure
+      )
+
+      val (bob_secnonce, bob_pubnonce) = Musig2.nonceGen(
+        secretSigningKey = Some(bob_priv.value),
+        pubKey = bob_pub,
+        aggregateXOnlyPublicKey = Some(pointQ.xonly),
+        message = Some(hash),
+        extraIn = None,
+        nextRand32 = ByteVector32.fromValidHex("02" * 32) // not secure
+      )
+
+      // combine their respective pubnonces
+      val aggnonce = Musig2.nonceAgg(List(alice_pubnonce, bob_pubnonce))
+
+      // Create a signing session context
+      // The context can be re-created by either of Alice or Bob
+      val ctx = Musig2.SessionCtx(
+        aggNonce = aggnonce,
+        numPubKeys = 2,
+        pubKeys = List(alice_pub.value, bob_pub.value),
+        numTweaks = 0, // default: no tweaks
+        tweaks = List(), // default: no tweaks
+        isXonlyTweak = List(), // default: no tweaks
+        message = hash // the (hash of) the spending transaction
+      )
+
+      // Alice and Bob each independently sign using the Musig2 signing algorithm.
+      // The resulting partial signatures are 32-bytes each.
+      val alice_psig = Musig2.sign(alice_secnonce, alice_priv, ctx)
+      val bob_psig = Musig2.sign(bob_secnonce, bob_priv, ctx)
+
+      // Combine the partial signatures into a complete, valid BIP340 signature.
+      val sig = Musig2.partialSigAgg(List(alice_psig, bob_psig), ctx)
+
+      // Simple control block, no specific merkle hashes to provide.
+      val controlBlock = ByteVector(
+        (Script.TAPROOT_LEAF_TAPSCRIPT + (if (parity) 1 else 0)).toByte
+      ) ++ internalPubKey.value
+
+      // construct the final signed transaction
+      val tx = tmp.updateWitness(
+        0,
+        ScriptWitness(
+          List(sig, Script.write(script), controlBlock)
+        )
+      )
+      
+      assert(
+        Transaction.correctlySpends(
+          tx = tx,
+          inputs = List(fundingTx),
+          scriptFlags = ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS
+        ).isSuccess
+      )
+    }
   }
 }
