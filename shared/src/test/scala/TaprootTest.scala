@@ -5,9 +5,6 @@ import utest._
 import scodec.bits._
 import scoin.DeterministicWallet
 import scoin.DeterministicWallet.KeyPath
-import scoin.Crypto.XOnlyPublicKey
-import scoin.Crypto.PrivateKey
-import scoin.Crypto.PublicKey
 
 object TaprootTest extends TestSuite {
   // https://github.com/ACINQ/bitcoin-kmp/pull/40/commits/fecb238fcc41aea9be48a12e3cfaa87c35bf960b#diff-ff1783827538d549c00a3f880a3aadba3523737a3c110fbe6634ccad4b6d2354

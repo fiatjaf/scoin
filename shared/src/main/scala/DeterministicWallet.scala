@@ -5,7 +5,6 @@ import java.math.BigInteger
 import java.nio.ByteOrder
 import scala.language.implicitConversions
 
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.Protocol._
 import scodec.bits.ByteVector
 

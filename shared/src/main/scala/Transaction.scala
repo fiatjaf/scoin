@@ -1,15 +1,13 @@
 package scoin
 
 import java.io.{ByteArrayOutputStream, InputStream, OutputStream}
+import java.nio.ByteOrder
 import scala.util.Try
+import scala.collection.mutable.ArrayBuffer
 
-import scoin.Crypto.PrivateKey
 import scoin.Protocol._
 import scoin.Script.Runner
 import scodec.bits.ByteVector
-
-import scala.collection.mutable.ArrayBuffer
-import java.nio.ByteOrder
 
 object OutPoint extends BtcSerializer[OutPoint] {
   def apply(tx: Transaction, index: Int) =

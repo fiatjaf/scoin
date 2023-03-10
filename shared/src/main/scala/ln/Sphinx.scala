@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 import scodec.Attempt
 import scodec.bits.ByteVector
-import scoin.Crypto.{PublicKey, PrivateKey}
+
 import scoin._
 import scoin.ln._
 

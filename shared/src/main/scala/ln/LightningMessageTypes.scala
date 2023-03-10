@@ -6,7 +6,6 @@ import scodec.bits.ByteVector
 import com.comcast.ip4s.{Ipv4Address, Ipv6Address, IpAddress}
 
 import scoin._
-import scoin.Crypto.{PrivateKey, PublicKey}
 
 // @formatter:off
 trait LightningMessage extends Serializable

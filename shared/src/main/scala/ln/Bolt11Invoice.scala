@@ -7,7 +7,6 @@ import scodec.bits.{BitVector, ByteOrdering, ByteVector}
 import scodec.codecs.{list, ubyte}
 import scodec.{Codec, Err}
 
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin._
 import scoin.ln._
 

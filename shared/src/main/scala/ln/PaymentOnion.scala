@@ -2,7 +2,6 @@ package scoin.ln
 
 import scodec.bits.{BitVector, ByteVector}
 import scoin._
-import scoin.Crypto.PublicKey
 import scoin.CommonCodecs._
 import scoin.ln._
 import scoin.ln.TlvCodecs._

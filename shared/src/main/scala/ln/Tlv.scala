@@ -6,7 +6,6 @@ import scodec.bits.ByteVector
 import scodec.codecs._
 
 import scoin._
-import scoin.Crypto.PublicKey
 import scoin.CommonCodecs._
 import scoin.ln._
 import scoin.ln.Features._

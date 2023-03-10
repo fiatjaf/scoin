@@ -6,7 +6,6 @@ import scodec.bits.ByteVector
 
 import scoin._
 import scoin.CommonCodecs.{cltvExpiry, cltvExpiryDelta}
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
 import scoin.ln.LightningMessageCodecs.featuresCodec
 import scoin.ln.OnionRoutingCodecs.{ForbiddenTlv, MissingRequiredTlv}

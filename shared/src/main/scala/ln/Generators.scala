@@ -1,8 +1,7 @@
 package scoin.ln
 
 import scodec.bits.ByteVector
-import scoin.{ByteVector32, Crypto}
-import scoin.Crypto.{PublicKey, PrivateKey}
+import scoin.{ByteVector32, PublicKey, PrivateKey, Crypto}
 
 object Generators {
   def fixSize(data: ByteVector): ByteVector32 = data.length match {

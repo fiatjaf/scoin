@@ -4,7 +4,6 @@ import scoin._
 import utest._
 import scodec.bits._
 import scoin.DeterministicWallet.KeyPath
-import scoin.Crypto.PrivateKey
 
 object Bip86Test extends TestSuite {
   // https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki

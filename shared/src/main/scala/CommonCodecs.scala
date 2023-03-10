@@ -13,7 +13,6 @@ import scoin.DeterministicWallet.{
   ExtendedPublicKey,
   KeyPath
 }
-import scoin.Crypto.{PrivateKey, PublicKey, XOnlyPublicKey}
 import scoin.ln._
 
 object CommonCodecs {

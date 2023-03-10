@@ -27,75 +27,17 @@ private[scoin] trait CryptoPlatform {
   )
   def N = bigint2biginteger(CURVE.n)
 
-  private implicit def bigint2biginteger(x: js.BigInt): BigInteger =
+  private[scoin] implicit def bigint2biginteger(x: js.BigInt): BigInteger =
     new BigInteger(x.toString(10), 10)
 
-  private implicit def bytevector2biginteger(x: ByteVector): BigInteger =
+  private[scoin] implicit def bytevector2biginteger(x: ByteVector): BigInteger =
     new BigInteger(x.toHex, 16)
 
-  private implicit def bytevector2jsbigint(x: ByteVector): js.BigInt =
+  private[scoin] implicit def bytevector2jsbigint(x: ByteVector): js.BigInt =
     js.BigInt(s"0x${x.toHex}")
 
   private val zero = BigInteger.valueOf(0)
   private val one = BigInteger.valueOf(1)
-
-  private[scoin] class PrivateKeyPlatform(value: ByteVector32) {
-    def add(that: PrivateKey): PrivateKey = PrivateKey {
-      (BigInt(value.toHex, 16) + BigInt(that.value.toHex, 16)).mod(N)
-    }
-
-    def subtract(that: PrivateKey): PrivateKey = PrivateKey {
-      val negThat = BigInt(N) - BigInt(that.value.toHex, 16)
-      (BigInt(value.toHex, 16) + negThat).mod(N)
-    }
-
-    def multiply(that: PrivateKey): PrivateKey =
-      PrivateKey(
-        (BigInt(value.toHex, 16) * BigInt(that.value.toHex, 16)).mod(N)
-      )
-
-    def publicKey: PublicKey = PublicKey(
-      ByteVector.view(Secp256k1.getPublicKey(value.bytes.toUint8Array, true))
-    )
-  }
-
-  private[scoin] class PublicKeyPlatform(value: ByteVector) {
-    lazy val point = Point.fromHex(value.toUint8Array)
-
-    def add(that: PublicKey): PublicKey = PublicKey(
-      ByteVector.view(
-        point.add(that.asInstanceOf[PublicKeyPlatform].point).toRawBytes(true)
-      )
-    )
-
-    def add(that: PrivateKey): PublicKey =
-      PublicKey(
-        ByteVector.view(
-          utils.pointAddScalar(
-            value.toUint8Array,
-            that.value.toUint8Array
-          )
-        )
-      )
-
-    def subtract(that: PublicKey): PublicKey = PublicKey(
-      ByteVector.view(
-        point
-          .subtract(that.asInstanceOf[PublicKeyPlatform].point)
-          .toRawBytes(true)
-      )
-    )
-
-    def multiply(that: PrivateKey): PublicKey = PublicKey(
-      ByteVector.view(
-        point
-          .multiply(that.value.bytes)
-          .toRawBytes(true)
-      )
-    )
-
-    def toUncompressedBin: ByteVector = ByteVector.view(point.toRawBytes(false))
-  }
 
   def sha1(input: ByteVector): ByteVector =
     ByteVector.fromUint8Array(nobleSha1(input.toUint8Array))

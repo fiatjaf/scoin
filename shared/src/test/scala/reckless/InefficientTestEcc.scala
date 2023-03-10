@@ -27,7 +27,7 @@ object RecklessECCTest extends TestSuite {
       //      = (0xdaed4f2be3a8bf278e70132fb0beb7522f570e144bf615c07e996d443dee8729, 0xa69dce4a7d6c98e8d4a1aca87ef8d7003f83c230f3afa726ab40e52290be1c55)
       //
       val point = curve.CurvePoint.fromUnCompressed(
-        Crypto.PrivateKey(priv).publicKey.toUncompressedBin
+        PrivateKey(priv).publicKey.toUncompressedBin
       )
       require(
         point.x.toString(16) == BigInt(

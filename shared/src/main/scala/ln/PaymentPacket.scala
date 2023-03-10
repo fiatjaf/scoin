@@ -5,7 +5,6 @@ import scodec.bits.ByteVector
 import scodec.{Attempt, Codec, DecodeResult}
 
 import scoin._
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
 
 sealed trait IncomingPaymentPacket

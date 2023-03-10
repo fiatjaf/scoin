@@ -3,8 +3,6 @@ package scoin
 import scoin._
 import utest._
 import scodec.bits._
-import Crypto.PrivateKey
-import Crypto.XOnlyPublicKey
 
 object Bip340Test extends TestSuite {
   // tests inspired by https://github.com/ACINQ/secp256k1-kmp/blob/master/tests/src/commonTest/kotlin/fr/acinq/secp256k1/Secp256k1Test.kt#L291

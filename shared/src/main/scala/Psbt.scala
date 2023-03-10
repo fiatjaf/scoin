@@ -12,7 +12,6 @@ import scala.util.{Failure, Success, Try}
 import scala.language.postfixOps
 import scodec.bits.ByteVector
 
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.DeterministicWallet.{ExtendedPublicKey, KeyPath}
 
 /** A partially signed bitcoin transaction: see

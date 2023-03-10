@@ -3,7 +3,6 @@ package scoin.ln
 import scala.util.Success
 import scodec.bits._
 import scoin._
-import scoin.Crypto.{PrivateKey, PublicKey}
 import scoin.ln._
 import scoin.ln.Sphinx.RouteBlinding.BlindedRoute
 import utest._

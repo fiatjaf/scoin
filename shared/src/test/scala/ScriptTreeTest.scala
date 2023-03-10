@@ -9,7 +9,7 @@ object ScriptTreeTest extends TestSuite {
     test("ScriptTree - construct tree from 3 element list") {
       // just some bogus scripts, pushing an unspendable key
       val scripts = List.fill(3)(
-        List(OP_PUSHDATA(Crypto.PublicKey.unspendable.xonly), OP_CHECKSIG)
+        List(OP_PUSHDATA(PublicKey.unspendable.xonly), OP_CHECKSIG)
       )
       val leaves = scripts.zipWithIndex.map { case (script, idx) =>
         ScriptTree.Leaf(
@@ -27,7 +27,7 @@ object ScriptTreeTest extends TestSuite {
       val merkleRoot1 = ScriptTree.hash(scriptTree1)
 
       val leaves2 = scripts.zipWithIndex.map { case (script, idx) =>
-          ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
+        ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
       }
       val scriptTree2 = ScriptTree.naiveFromList(leaves2)
       val merkleRoot2 = scriptTree2.hash
@@ -37,7 +37,7 @@ object ScriptTreeTest extends TestSuite {
     test("ScriptTree - construct tree from 4 element list ") {
       // just some bogus scripts, pushing an unspendable key
       val scripts = List.fill(4)(
-        List(OP_PUSHDATA(Crypto.PublicKey.unspendable.xonly), OP_CHECKSIG)
+        List(OP_PUSHDATA(PublicKey.unspendable.xonly), OP_CHECKSIG)
       )
       val leaves = scripts.zipWithIndex.map { case (script, idx) =>
         ScriptTree.Leaf(
@@ -55,7 +55,7 @@ object ScriptTreeTest extends TestSuite {
       val merkleRoot1 = ScriptTree.hash(scriptTree1)
 
       val leaves2 = scripts.zipWithIndex.map { case (script, idx) =>
-          ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
+        ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
       }
       val scriptTree2 = ScriptTree.naiveFromList(leaves2)
       val merkleRoot2 = ScriptTree.hash(scriptTree2)
@@ -70,7 +70,7 @@ object ScriptTreeTest extends TestSuite {
         List(OP_3)
       )
       val leaves = scripts.zipWithIndex.map { case (script, idx) =>
-          ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
+        ScriptLeaf(idx, Script.write(script), Script.TAPROOT_LEAF_TAPSCRIPT)
       }
       val scriptTree = ScriptTree.naiveFromList(leaves)
       //     root
@@ -79,17 +79,17 @@ object ScriptTreeTest extends TestSuite {
       // #1  #2
 
       // useful for visualizing
-      // println(scriptTree.prettyString) 
+      // println(scriptTree.prettyString)
 
       val merkleRoot = scriptTree.hash
 
       val proofs = scriptTree.merkleProofs
-      
+
       // now to reconstruct the merkle root from a given leaf and path
-      proofs.foreach{
-        case (leaf,proof) => assert(scriptTree.verifyProof(leaf,proof))
+      proofs.foreach { case (leaf, proof) =>
+        assert(scriptTree.verifyProof(leaf, proof))
       }
-      
+
     }
   }
 }

@@ -1,11 +1,12 @@
 import java.math.BigInteger
-import scala.language.implicitConversions
-import scodec.bits.ByteVector
-
-import scoin.Crypto.{PublicKey, PrivateKey, randomBytes}
 import scala.util.Try
 import scala.util.Failure
 import scala.util.Success
+import scala.language.implicitConversions
+import scodec.bits.ByteVector
+
+import scoin.{PrivateKey, PublicKey}
+import scoin.Crypto.randomBytes
 
 /** Types and utils related to Bitcoin blockchain objects: blocks, scripts,
   * transactions, addresses, PSBTs, keys, signatures, hashes.

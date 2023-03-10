@@ -1,8 +1,6 @@
 package scoin
 
-import scoin.Crypto.PublicKey
 import scodec.bits.ByteVector
-import scoin.Crypto.XOnlyPublicKey
 
 // @formatter:off
 abstract class ScriptElt
