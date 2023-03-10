@@ -50,7 +50,8 @@ lazy val scoin = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "com.fiatjaf" %%% "sn-sha256" % "0.4.1",
       "com.fiatjaf" %%% "sn-secp256k1" % "0.5.1",
       "com.fiatjaf" %%% "sn-chacha20poly1305" % "0.2.1"
-    )
+    ),
+    nativeConfig ~= { _.withEmbedResources(true) }
   )
 
 // we need these things only to run tests on native and js on github actions
