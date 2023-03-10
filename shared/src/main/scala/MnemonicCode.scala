@@ -2,17 +2,18 @@ package scoin
 
 import java.nio.{ByteBuffer, IntBuffer}
 import scala.annotation.tailrec
-import scala.io.Source
+
 import scodec.bits.ByteVector
+import scala.util.{Try,Failure,Success}
 
 /** see https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
   */
 object MnemonicCode {
-  lazy val englishWordlist = {
-    val stream =
-      MnemonicCode.getClass.getResourceAsStream("/bip39_english_wordlist.txt")
-    Source.fromInputStream(stream, "UTF-8").getLines().toSeq
-  }
+
+  // requiring the `Id` implementation of Resources here so as to not break
+  // other code (e.g. this entire file is essentially using the `Id` monad).
+  // 
+  lazy val englishWordlist = Resources[cats.Id].bip39_english_wordlist
 
   private def toBinary(x: Byte): List[Boolean] = {
     @tailrec
@@ -167,5 +168,42 @@ object MnemonicCode {
       buff(i) ^= b2.get(i)
       i += 1
     }
+  }
+
+    /** recover the entropy encoded in the mnemonic words
+    *
+    * @param mnemonics
+    *   list of mnemomic words
+    */
+  def recoverEntropy(
+      mnemonics: Seq[String],
+      wordlist: Seq[String] = englishWordlist
+  ): Try[ByteVector] = Try {
+    require(wordlist.length == 2048, "invalid word list (size should be 2048)")
+    require(mnemonics.nonEmpty, "mnemonic code cannot be empty")
+    require(
+      mnemonics.length % 3 == 0,
+      s"invalid mnemonic word count ${mnemonics.length}, it must be a multiple of 3"
+    )
+    val wordMap = wordlist.zipWithIndex.toMap
+    mnemonics.foreach(word =>
+      require(wordMap.contains(word), s"invalid mnemonic word $word")
+    )
+    val indexes = mnemonics.map(word => wordMap(word))
+
+    @tailrec
+    def toBits(
+        index: Int,
+        acc: Seq[Boolean] = Seq.empty[Boolean]
+    ): Seq[Boolean] =
+      if (acc.length == 11) acc else toBits(index / 2, (index % 2 != 0) +: acc)
+
+    val bits = indexes.flatMap(i => toBits(i))
+    val bitlength = (bits.length * 32) / 33
+    val (databits, checksumbits) = bits.splitAt(bitlength)
+    val data = ByteVector(databits.grouped(8).map(fromBinary).map(_.toByte))
+    val check = toBinary(Crypto.sha256(data)).take(data.length.toInt / 4)
+    require(check == checksumbits, "invalid checksum")
+    scodec.bits.BitVector.bits(databits).bytes
   }
 }

@@ -25,4 +25,10 @@ object Resources {
 
   def apply[F[_]: Resources]: Resources[F] = implicitly
 
+  /**
+    * convenience implementation provided for `Id` context
+    * `type Id[A] = A`
+    */
+  implicit val resourcesId: Resources[cats.Id] = instances.ResourcesId
+
 }
