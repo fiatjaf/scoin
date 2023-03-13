@@ -355,11 +355,9 @@ object Musig2Test extends TestSuite {
 
       val pnonces23 = pnonces(2) :: pnonces(3) :: Nil
       // "comment": "Sum of second points encoded in the nonces is point at infinity which is serialized as 33 zero bytes"
-      assert(
-        Musig2.nonceAgg(pnonces23) == ByteVector.fromValidHex(
-          "035FE1873B4F2967F52FEA4A06AD5A8ECCBE9D0FD73068012C894E2E87CCB5804B000000000000000000000000000000000000000000000000000000000000000000"
-        )
-      )
+      val agg = Musig2.nonceAgg(pnonces23)
+      agg.toHex ==>
+        "035fe1873b4f2967f52fea4a06ad5a8eccbe9d0fd73068012c894e2e87ccb5804b000000000000000000000000000000000000000000000000000000000000000000"
 
       val pnonces04 = pnonces(0) :: pnonces(4) :: Nil
       //  "comment": "Public nonce from signer 1 is invalid due wrong tag, 0x04, in the first half"
