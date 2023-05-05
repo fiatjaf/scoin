@@ -7,9 +7,10 @@ See API documentation on https://javadoc.io/doc/com.fiatjaf/scoin_3/latest/.
 
 ## Projects using scoin
 
-  - https://github.com/fiatjaf/poncho
-  - https://github.com/fiatjaf/immortan
-  - https://github.com/fiatjaf/openchain
+  - https://github.com/fiatjaf/soma
+  - https://github.com/fiatjaf/snow
+  - https://github.com/nbd-wtf/poncho
+  - https://github.com/nbd-wtf/immortan
 
 ## libsecp256k1 dependencies
 
