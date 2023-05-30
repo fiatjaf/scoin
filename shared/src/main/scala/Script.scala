@@ -1950,16 +1950,17 @@ object Script {
             witness.stack.length == 2,
             "Invalid witness program, should have 2 items"
           )
-          val finalStack = run(
-            OP_DUP :: OP_HASH160 :: OP_PUSHDATA(
+          val pay2pkhScript = OP_DUP :: OP_HASH160 :: OP_PUSHDATA(
               program
-            ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil,
+            ) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil
+          val finalStack = run(
+            pay2pkhScript,
             witness.stack.reverse.toList,
             State(
               conditions = List.empty[Boolean],
               altstack = List.empty[ByteVector],
               opCount = 0,
-              scriptCode = Script.parse(program)
+              scriptCode = pay2pkhScript
             ),
             SigVersion.SIGVERSION_WITNESS_V0
           )
