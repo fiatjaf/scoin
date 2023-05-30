@@ -7,6 +7,97 @@ import utest._
 
 object SegwitTest extends TestSuite {
   val tests = Tests {
+    test("pay2wpkh - create and spend - acinq") {
+      // https://github.com/ACINQ/bitcoin-lib/blob/master/src/test/scala/fr/acinq/bitcoin/scalacompat/SegwitSpec.scala#L66
+      val priv1 = PrivateKey.fromBase58("cV7LGVeY2VPuCyCSarqEqFCUNig2NzwiAEBTTA89vNRQ4Vqjfurs", Base58.Prefix.SecretKeyTestnet)._1
+      val pub1 = priv1.publicKey
+      val address1 = Base58Check.encode(Base58.Prefix.PubkeyAddressTestnet, Crypto.hash160(pub1.value))
+
+      assert(address1 == "mp4eLFx7CpifAJxnvCZ3FmqKsh9dQmi5dA")
+
+      // this is a standard tx that sends 0.04 BTC to mp4eLFx7CpifAJxnvCZ3FmqKsh9dQmi5dA
+      val tx1 = Transaction.read("02000000000101516508384a3e006340f1ea700eb3635330beed5d94c7b460b6b495eb1593d55c0100000023220020a5fdf5b5f2c592362b78a50997821964b39dd90476c6e1f3e97e79acb134ca3bfdffffff0200093d00000000001976a9145dbf52b8d7af4fb5f9b75b808f0a8284493531b388aca005071d0000000017a914d77e5f7ca4d9f05dc4f25dc0aa1391f0e901bdfc87040047304402207bfb18327be173512f38bd4120b8f02545321ecc6105a852cbc25b1de687ba570220705a1225d8a8e0fbd4b35f3bc38a2840706f8524e8dc6f0151746aeff14033ce014730440220486925fb0495442e4ccb1b711692af7057d4db24f8775b5dfa3f8c74992081f102203beae7d96423e0c66b7b5f8919a5f3ad89a42dc4303f37201e4e596909478357014752210245119449d07c16992c148e3b33f1395ee05c936fc510d9fae83417f8e1901f922103eb03f67b56c88bccff90b76182c08556eac9ebc5a0efee8669bef69ae6d4ea5752ae75bb2300")
+
+      // now let's create a simple tx that spends tx1 and send 0.039 BTC to P2WPK output
+      val tx2 = {
+        val tmp = Transaction(version = 1,
+          txIn = TxIn(OutPoint(tx1.hash, 0), sequence = 0xffffffffL, signatureScript = ByteVector.empty, witness = ScriptWitness.empty) :: Nil,
+          txOut = TxOut(0.039.btc, Script.pay2wpkh(pub1)) :: Nil,
+          lockTime = 0
+        )
+        val sig = Transaction.signInput(tmp, 0, tx1.txOut(0).publicKeyScript, SIGHASH_ALL, 0.sat, SigVersion.SIGVERSION_BASE, priv1)
+        tmp.updateSigScript(0, OP_PUSHDATA(sig) :: OP_PUSHDATA(priv1.publicKey) :: Nil)
+      }
+      Transaction.correctlySpends(tx2, Seq(tx1), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS)
+      assert(tx2.txid == ByteVector32(hex"f25b3fecc9652466926237d96e4bc7ee2c984051fe48e61417aba218af5570c3"))
+      // this tx was published on testnet as f25b3fecc9652466926237d96e4bc7ee2c984051fe48e61417aba218af5570c3
+
+      // and now we create a testnet tx that spends the P2WPK output
+      val tx3 = {
+        val tmp: Transaction = Transaction(version = 1,
+          txIn = TxIn(OutPoint(tx2.hash, 0), sequence = 0xffffffffL, signatureScript = ByteVector.empty, witness = ScriptWitness.empty) :: Nil,
+          txOut = TxOut(0.038.btc, Script.pay2wpkh(pub1)) :: Nil, // we reuse the same output script but if could be anything else
+          lockTime = 0
+        )
+        // mind this: the pubkey script used for signing is not the prevout pubscript (which is just a push
+        // of the pubkey hash), but the actual script that is evaluated by the script engine, in this case a PAY2PKH script
+        val pubKeyScript = Script.pay2pkh(pub1)
+        val sig = Transaction.signInput(tmp, 0, pubKeyScript, SIGHASH_ALL, tx2.txOut(0).amount, SigVersion.SIGVERSION_WITNESS_V0, priv1)
+        val witness = ScriptWitness(Seq(sig, pub1.value))
+        tmp.updateWitness(0, witness)
+      }
+
+      assert(Transaction.correctlySpends(tx3, Seq(tx2), ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS) match {
+        case util.Failure(exception) => throw exception
+        case util.Success(value) => true
+      })
+      assert(tx3.txid == ByteVector32(hex"739e7cba97af259d2c089690adea00aa78b1c8d7995aa9377be58fe5332378aa"))
+      // this tx was published on testnet as 739e7cba97af259d2c089690adea00aa78b1c8d7995aa9377be58fe5332378aa
+    }
+
+    test("pay2wpkh - create and spend - 2") {
+      val priv = PrivateKey(ByteVector32.fromValidHex("01"*32))
+
+      val fundingTx = Transaction(
+        version = 1L,
+        txIn = TxIn.coinbase(OP_1 :: OP_1 :: Nil) :: Nil,
+        txOut = TxOut(Satoshi(1000000L),Script.pay2wpkh(priv.publicKey)) :: Nil,
+        lockTime = 0L
+      )
+
+      val tx = {
+        val tmp = Transaction(
+          version = 1L,
+          txIn = TxIn(
+            outPoint = OutPoint(fundingTx,0),
+            signatureScript = ByteVector.empty,
+            sequence = TxIn.SEQUENCE_FINAL,
+            witness = ScriptWitness.empty
+          ) :: Nil,
+          txOut = TxOut(
+            amount = Satoshi(1000000L),
+            publicKeyScript = OP_1 :: OP_CHECKSEQUENCEVERIFY :: Nil
+          ) :: Nil,
+          lockTime = 0L
+        )
+        val pubkeyScript = Script.pay2pkh(priv.publicKey) // <-- pay2pkh not p2wpkh
+        // IMPORTANT: notice how `pubkeyScript` above which is used for signing
+        // below is *not* the prevout pubscript (which is just a push
+        // of the pubkey hash), but the actual script that is evaluated by the 
+        // script engine, in this case a PAY2PKH script
+        val sig = Transaction.signInput(tmp,0,pubkeyScript,SIGHASH_ALL, Satoshi(1000000L),SigVersion.SIGVERSION_WITNESS_V0,priv)
+        val witness = ScriptWitness(Seq(sig,priv.publicKey.value))
+        tmp.updateWitness(0,witness)
+      }
+
+      assert(
+        Transaction.correctlySpends(tx,List(fundingTx),ScriptFlags.STANDARD_SCRIPT_VERIFY_FLAGS) match {
+          case util.Failure(exception) => throw exception
+          case util.Success(value) => true
+        }
+      )
+    }
+
     test("pay2wsh - acinq - create and spend") {
       // this test copied from: https://github.com/ACINQ/bitcoin-lib/blob/bba17601f8e892d83c1c74c953aa42fd08d44c0e/src/test/scala/fr/acinq/bitcoin/scalacompat/SegwitSpec.scala#L110
       val priv1 = PrivateKey
