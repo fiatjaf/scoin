@@ -36,7 +36,7 @@ object AdaptorSig {
     * @param tweakPoint
     *   the curve point by which to "tweak" the signature
     * @return
-    *   (R,s,T) as a 97-byte ByteVector
+    *   (R,s,T) as `AdaptorSig` datatype
     */
   def computeSchnorrAdaptorSignatureForPoint(
       data: ByteVector32,
@@ -46,7 +46,7 @@ object AdaptorSig {
     val r = PrivateKey(calculateBip340nonce(data, privateKey, None))
     val pointR = r.publicKey
     val pointRprime = pointR + tweakPoint
-    //require(pointRprime.isEven, "(R + T) must be even for adaptor signature to verify properly")
+    
     val pointP = privateKey.publicKey
     val e = calculateBip340challenge(
       data.bytes,
@@ -61,6 +61,35 @@ object AdaptorSig {
     AdaptorSig(pointR, s, tweakPoint)
   }
 
+  /**
+    * Tweak a valid schnorr signature `(R',s')` with a scalar value `t` to create
+    * an adaptor signature `(R' - t*G, s' - t, t*G). Anybody with knowledge of `t`
+    * will be able to repair the resulting adaptor signature to reconstruct the
+    * valid original signature. Because knowledge of the signing key was not
+    * necessary to create the adaptor signature, this shows that adaptor
+    * signatures posess a denaibility property. see:
+    * https://suredbits.com/schnorr-applications-scriptless-scripts/
+    *
+    * @param sig
+    * @param scalarTweak
+    * @return `AdaptorSig`
+    */
+  def tweakSchnorrSignatureWithScalar(
+      bip340sig: ByteVector64,
+      scalarTweak: ByteVector32
+  ): AdaptorSig = {
+    val (pointRprime, sPrime) = (
+      XOnlyPublicKey(ByteVector32(bip340sig.take(32))).publicKey,
+      PrivateKey(ByteVector32(bip340sig.drop(32)))
+    )
+    val pointT = PrivateKey(scalarTweak).publicKey
+    AdaptorSig(
+      pointR = pointRprime - pointT,
+      s = sPrime - PrivateKey(scalarTweak),
+      pointT = pointT
+    )
+  }
+
   /** Verify an "Adaptor Signature." If verification is successful and the
     * verifier knows the discrete logarithm (private key) for the `tweakPoint`,
     * then verifier will be able to repair the adaptor signature into a complete
@@ -70,8 +99,7 @@ object AdaptorSig {
     * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
     * @param adaptorSig
-    *   a 97-byte `ByteVector` `(R,s,T)` where `R` and `s` are 32-bytes,
-    *   and `T` is a 33-byte compressed public key.
+    *   `AdaptorSig == (R,s,T)`
     *   `e = H(R + T || P || m)`
     *   `if R == R' = s*G - e*P, the adaptorSig is valid
     * @param data
@@ -105,8 +133,7 @@ object AdaptorSig {
     * https://suredbits.com/schnorr-applications-scriptless-scripts/
     *
     * @param adaptorSig
-    *   a 97-byte `ByteVector` `(R,s,T)` where `R` and `s` are 32-bytes,
-    *   and `T` is a 33-byte compressed public key.
+    *  `AdaptorSig(R,s,T)`
     * @param data
     *   the message which is signed (usually a hash of a bitcoin transaction)
     * @param publicKey
