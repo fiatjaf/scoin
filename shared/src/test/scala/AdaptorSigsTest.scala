@@ -97,8 +97,7 @@ object AdaptorSigsTest extends TestSuite {
           privateKey = priv,
           tweakPoint = tweakPoint
         )
-        //require(XOnlyPublicKey(ByteVector32(adaptorSig.take(32))) == PrivateKey(calculateBip340nonce(data = msg, privateKey = priv, auxrand32 = None)).publicKey.xonly, "R does not match")
-        //require(PublicKey(adaptorSig.drop(64)).value == tweakPoint.value, "tweakPoint does not match")
+        
         assert(verifySchnorrAdaptorSignature(adaptorSig, msg, priv.publicKey.xonly))
         val repairedSig = repairSchnorrAdaptorSignature(
           adaptorSig = adaptorSig,
@@ -112,6 +111,43 @@ object AdaptorSigsTest extends TestSuite {
         //println(s"index $i succeeded!")
         
       }
+    }
+
+    test("a bunch of deniable adaptor sigs") {
+      import Crypto._, AdaptorSig._
+      val num_trials = 100
+      (0 until num_trials).foreach{ i =>
+        //println(s"index $i started")
+        val priv = PrivateKey(sha256(ByteVector(s"priv$i".getBytes)))
+        val msg = sha256(ByteVector(s"msg$i".getBytes))
+        val tweak = sha256(ByteVector(s"tweak$i".getBytes))
+        val sig = signSchnorr(data = msg, privateKey = priv, auxrand32 = None)
+
+    /**
+      * notice how we can also turn any valid bip340 signature into an 
+      * an adaptor siganture for point t*G = T. Anybody with knowledge of `t`
+      * will be able to repair the resulting adaptor signature to reconstruct the
+      * valid original signature. Because knowledge of the signing key was not
+      * necessary to create the adaptor signature, this shows that adaptor 
+      * signatures posess a denaibility property.
+      * */
+        val adaptorSig = tweakSchnorrSignatureWithScalar(
+          bip340sig = sig,
+          scalarTweak = tweak
+        )
+
+        assert(verifySchnorrAdaptorSignature(adaptorSig, msg, priv.publicKey.xonly))
+        val repairedSig = repairSchnorrAdaptorSignature(
+          adaptorSig = adaptorSig,
+          data = msg,
+          scalarTweak = tweak
+        )
+        assert(verifySignatureSchnorr(repairedSig, msg, priv.publicKey.xonly))
+
+        val extractedScalar = extractScalar(adaptorSig, repairedSig)
+        assert(extractedScalar == tweak)
+        //println(s"index $i succeeded!")
+      }      
     }
   }
 }
