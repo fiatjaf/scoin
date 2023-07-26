@@ -3,6 +3,23 @@ package scoin
 import Crypto._
 import scodec.bits.ByteVector
 
+/**
+  * An adaptor signature `(R,s,T)` which can be repaired with the knowledge of
+  * the discrete logarithm (the private key) of `pointT`. The repaired signature
+  * is a valid BIP340 signature.
+  *
+  * @param pointR
+  * @param s
+  * @param pointT
+  */
+private[scoin] case class AdaptorSig(
+  pointR: PublicKey,
+  s: PrivateKey,
+  pointT: PublicKey
+) {
+  def value: ByteVector = pointR.xonly.value ++ s.value ++ pointT.value
+}
+
 object AdaptorSig {
 
  /** Tweak an otherwise valid BIP340 signature with a curve point `tweakPoint`.
@@ -25,7 +42,7 @@ object AdaptorSig {
       data: ByteVector32,
       privateKey: PrivateKey,
       tweakPoint: PublicKey
-  ): ByteVector = {
+  ): AdaptorSig = {
     val r = PrivateKey(calculateBip340nonce(data, privateKey, None))
     val pointR = r.publicKey
     val pointRprime = pointR + tweakPoint
@@ -40,7 +57,8 @@ object AdaptorSig {
     val d = if(pointP.isOdd) privateKey.negate else privateKey
     // negate r if (R + T) is odd
     val s = ((if(pointRprime.isOdd) r.negate else r) + (PrivateKey(e) * d))
-    pointR.xonly.value ++ s.value ++ tweakPoint.value
+    //pointR.xonly.value ++ s.value ++ tweakPoint.value
+    AdaptorSig(pointR, s, tweakPoint)
   }
 
   /** Verify an "Adaptor Signature." If verification is successful and the
@@ -63,20 +81,20 @@ object AdaptorSig {
     * @return
     */
   def verifySchnorrAdaptorSignature(
-      adaptorSig: ByteVector,
+      adaptorSig: AdaptorSig,
       data: ByteVector32,
       xonlyPublicKey: XOnlyPublicKey
   ): Boolean = {
-    val pointR = XOnlyPublicKey(ByteVector32(adaptorSig.take(32)))
-    val s = PrivateKey(ByteVector32(adaptorSig.drop(32).take(32)))
-    val tweakPoint = PublicKey(adaptorSig.drop(64))
+    val pointR = adaptorSig.pointR
+    val s = adaptorSig.s
+    val tweakPoint = adaptorSig.pointT
     val challenge = calculateBip340challenge(
       data,
-      (pointR.publicKey + tweakPoint).xonly,
+      (pointR + tweakPoint).xonly,
       xonlyPublicKey
     )
     val pointRprime = (G * s) - (xonlyPublicKey.publicKey * PrivateKey(challenge))
-    pointR.publicKey.xonly == pointRprime.xonly
+    pointR.xonly == pointRprime.xonly
   }
 
   /** Repair an "Adaptor Signature" using knowledge of the discrete logarithm of
@@ -99,14 +117,14 @@ object AdaptorSig {
     * @return
     */
   def repairSchnorrAdaptorSignature(
-      adaptorSig: ByteVector,
+      adaptorSig: AdaptorSig,
       data: ByteVector32,
       scalarTweak: ByteVector32
   ): ByteVector64 = {
-    val pointR = XOnlyPublicKey(ByteVector32(adaptorSig.take(32)))
-    val s = PrivateKey(ByteVector32(adaptorSig.drop(32).take(32)))
-    val tweakPoint = PublicKey(adaptorSig.drop(64))
-    val pointRprime = pointR.publicKey + tweakPoint
+    val pointR = adaptorSig.pointR
+    val s = adaptorSig.s
+    val tweakPoint = adaptorSig.pointT
+    val pointRprime = pointR + tweakPoint
     // negate scalarTweak if (R + T) is odd
     val t = if(pointRprime.isOdd) PrivateKey(scalarTweak).negate else PrivateKey(scalarTweak)
     val sPrime = (s + t)
@@ -122,13 +140,13 @@ object AdaptorSig {
     * @return
     */
   def extractScalar( 
-    adaptorSig: ByteVector, 
+    adaptorSig: AdaptorSig, 
     repairedSig: ByteVector64
   ): ByteVector32 = {
-    val pointR = XOnlyPublicKey(ByteVector32(adaptorSig.take(32)))
-    val s = PrivateKey(ByteVector32(adaptorSig.drop(32).take(32)))
-    val tweakPoint = PublicKey(adaptorSig.drop(64))
-    val pointRprime = pointR.publicKey + tweakPoint
+    val pointR = adaptorSig.pointR
+    val s = adaptorSig.s
+    val tweakPoint = adaptorSig.pointT
+    val pointRprime = pointR + tweakPoint
     val sPrime = PrivateKey(ByteVector32(repairedSig.drop(32)))
     // negate the extracted value if (R + T) is odd
     if(pointRprime.isOdd)
